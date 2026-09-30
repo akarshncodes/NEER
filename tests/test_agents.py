@@ -99,3 +99,31 @@ def test_unauthorised_role_cannot_dig():
     s = run_case("leak_40", approver="Visitor", approver_role="viewer")
     assert s.status == "escalated" and s.verdict is None
     assert "Dig refused" in _texts(s)
+
+
+def test_invalid_llm_choice_falls_through_to_rules(monkeypatch):
+    """Fake providers (no network) that answer outside the allowed set are rejected, then `rules` answers."""
+    calls = []
+
+    class FakeModel:
+        def __init__(self, name):
+            self.name = name
+
+        def invoke(self, _messages):
+            calls.append(self.name)
+            return llm.Decision(choice="launch_rockets", reason="not allowed")
+
+    monkeypatch.setenv("NEER_LLM_CHAIN", "groq:fake1,gemini:fake2,rules")
+    monkeypatch.setenv("GROQ_API_KEY", "x")
+    monkeypatch.setenv("GOOGLE_API_KEY", "x")
+    monkeypatch.setattr(llm, "_model", lambda provider, model: FakeModel(provider))
+    llm.clear_decision_log()
+
+    d = llm.decide("Orchestrator", "sys", "situation", ["acoustic_check", "escalate"],
+                   lambda: ("acoustic_check", "rules pick"))
+
+    assert d.provider == "rules" and d.choice == "acoustic_check"
+    assert calls == ["groq", "groq", "gemini", "gemini"]          # each provider: first try + one retry
+    assert sum("not in allowed set" in f for f in d.fallbacks) == 4
+    rec = llm.DECISION_LOG[-1]
+    assert rec.guard_rejections == 4 and rec.rules_choice == "acoustic_check"

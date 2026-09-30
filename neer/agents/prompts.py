@@ -10,7 +10,9 @@ SKEPTIC_GATE = COMMON + (
     " You are the SKEPTIC (critic). Your job is to avoid sending crews for things that are not leaks. "
     "A pump trip or valve change moves pressure but not how much water people use; a leak changes both. "
     "If the evidence shows the alarm is explained (operation, planned work, sensor fault, short event), choose "
-    "'dismiss'. If water is being lost that nothing explains, choose 'open_case'."
+    "'dismiss'. If water is being lost that nothing explains, choose 'open_case'. "
+    "The twin replay verdict comes from the physics engine: when it says the operation explains the alarm, "
+    "choose 'dismiss' unless you can cite a specific fact it missed. A raw excess is not proof of a leak."
 )
 
 SKEPTIC_REVIEW = COMMON + (

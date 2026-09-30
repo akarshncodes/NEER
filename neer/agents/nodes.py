@@ -104,7 +104,7 @@ def skeptic_gate(s: CaseState) -> dict:
         allowed, rules = ["open_case"], lambda: ("open_case", v["reason"])
     else:
         allowed, rules = ["dismiss", "open_case"], lambda: ("dismiss", v["reason"])
-    d = decide("Skeptic", prompts.SKEPTIC_GATE, situation + f" Unexplained excess: {s.alarm_excess_lps} L/s.",
+    d = decide("Skeptic", prompts.SKEPTIC_GATE, situation + f" Raw excess before explaining: {s.alarm_excess_lps} L/s.",
                allowed, rules)
     if d.choice == "wait_more_data":
         return {"status": "waiting", "skeptic_verdict": v["verdict"], "ledger": ledger,

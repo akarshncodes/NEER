@@ -120,7 +120,7 @@ APPROVER_ROLES = ("supervisor", "engineer")
 # ---------------------------------------------------------------- LLM / tools
 LLM_CHAIN = os.getenv(
     "NEER_LLM_CHAIN",
-    "groq:llama-3.3-70b-versatile,gemini:gemini-2.0-flash,ollama:qwen2.5:7b,rules",
+    "groq:openai/gpt-oss-120b,gemini:gemini-3.5-flash,ollama:qwen2.5:7b,rules",
 )
 LLM_TIMEOUT_S = 20
 TOOL_MODE = os.getenv("NEER_TOOL_MODE", "direct")   # "direct" or "mcp"

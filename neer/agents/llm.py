@@ -1,6 +1,6 @@
 """LLM router: try each provider in NEER_LLM_CHAIN, fall back on any failure, end with `rules`.
 
-    groq:llama-3.3-70b-versatile -> gemini:gemini-2.0-flash -> ollama:qwen2.5:7b -> rules
+    groq:openai/gpt-oss-120b -> gemini:gemini-3.5-flash -> ollama:qwen2.5:7b -> rules
 
 Every decision is structured (Pydantic) and must pick from an ALLOWED set of actions.
 An invalid, malformed, slow or missing answer is a failure -> retry once -> next provider.
@@ -27,6 +27,26 @@ _pool = ThreadPoolExecutor(max_workers=2)
 class Decision(BaseModel):
     choice: str = Field(description="Exactly one of the allowed options")
     reason: str = Field(description="One or two plain-English sentences citing the numbers given")
+
+
+@dataclass
+class DecisionRecord:
+    """One audit row per decision: what the answering provider chose vs what `rules()` would have chosen."""
+    agent: str
+    provider: str            # "groq:<model>", "gemini:<model>" or "rules"
+    choice: str
+    rules_choice: str
+    reason: str
+    allowed: list[str]
+    fallbacks: list[str]
+    guard_rejections: int    # model answers refused because the choice was not in the allowed set
+
+
+DECISION_LOG: list[DecisionRecord] = []
+
+
+def clear_decision_log() -> None:
+    DECISION_LOG.clear()
 
 
 @dataclass
@@ -89,6 +109,8 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
     """Ask the chain to choose one of `allowed`. `rules()` returns (choice, reason) deterministically."""
     t0 = time.time()
     fails: list[str] = []
+    rejected = 0
+    rules_choice = rules()[0]          # deterministic and side-effect free; logged next to the model's answer
     prompt = (f"{situation}\n\nAllowed options: {allowed}.\n"
               f"Answer with `choice` = exactly one allowed option and a short `reason` that cites the numbers above. "
               f"Never invent numbers.")
@@ -104,9 +126,12 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
                 fut = _pool.submit(_model(provider, model).invoke, [("system", system), ("user", prompt)])
                 d: Decision = fut.result(timeout=config.LLM_TIMEOUT_S)
                 if d is None or d.choice not in allowed:
+                    rejected += 1
                     raise ValueError(f"choice {getattr(d, 'choice', None)!r} not in allowed set")
                 ms = (time.time() - t0) * 1000
                 _trace(agent, f"llm:{provider}", {"allowed": allowed}, True, f"{d.choice}: {d.reason}", ms)
+                DECISION_LOG.append(DecisionRecord(agent, f"{provider}:{model}", d.choice, rules_choice,
+                                                   d.reason.strip(), list(allowed), list(fails), rejected))
                 return DecisionResult(d.choice, d.reason.strip(), f"{provider}:{model}", fails, ms)
             except (FutTimeout, TimeoutError):
                 fails.append(f"{provider} timeout")
@@ -121,4 +146,6 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
     choice, reason = rules()
     ms = (time.time() - t0) * 1000
     _trace(agent, "llm:rules", {"allowed": allowed}, True, f"{choice}: {reason}", ms)
+    DECISION_LOG.append(DecisionRecord(agent, "rules", choice, rules_choice, reason, list(allowed), list(fails),
+                                       rejected))
     return DecisionResult(choice, reason, "rules", fails, ms)
