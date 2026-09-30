@@ -1,7 +1,7 @@
 # CLAUDE.md: NEER (HackSprint'26, problem SC-02)
 
 NEER is an evidence-driven agentic system for closed-loop water leak investigation and repair verification (SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN). It was built during a 24-hour hackathon (30 Sep 2026 9:00 AM – 1 Oct 7:30 AM IST) that is judged on agentic AI.
-**Status: stages 0–15 are built and tested (7 V2 upgrades · 8 AI owns the investigation · 9 pro Control Room · 10 database + REST API · 11–12 wow layer + 3D · 13 autonomous night watch · 14 fixes + UX · 15 dataset + Ask NEER).** Read `README.md` first, then the part of `docs/SPEC.md` you need.
+**Status: stages 0–15 are built and tested (7 V2 upgrades · 8 AI owns the investigation · 9 pro Control Room · 10 database + REST API · 11–12 wow layer + 3D · 13 autonomous night watch · 14 fixes + UX · 15 dataset + Ask NEER · 16 guided demo + self-check + launcher).** Read `README.md` first, then the part of `docs/SPEC.md` you need.
 
 ## Judging
 | Criterion | Weight |
@@ -18,7 +18,7 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
 1. **Physics and maths live in tested code** (`neer/engine`). The LLM only plans, critiques, chooses from an allowed set, and explains. It never produces a number that a tool did not return.
 2. **Contracts are in `neer/schemas.py`.** If you change one, update `docs/SPEC.md`.
 3. **Tests must stay green.**
-   - Run `uv run pytest -q` (89 test runs; use `-m "not slow"` for a quick check).
+   - Run `uv run pytest -q` (90 test runs; use `-m "not slow"` for a quick check).
    - Then commit as `stage/feature: summary`.
 4. **Deterministic:** every random process takes a seed. Demo scenarios must replay identically (`neer/sim/scenarios.py`).
 5. **Never block on the network.** The LLM chain ends in `rules`; the MCP transport falls back to direct calls.
@@ -45,6 +45,7 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
   - graph.py
   - runner.py (CLI)
 - `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS) · opsmap.py (city map on OpenStreetMap / schematic) · city3d.py (3D city view, pydeck; same layers as opsmap) · flowchart.py (live agent graph) · sandbox.py (twin what-if tab) · board.py (Kanban + impact strip) · report.py (case PDF) · geo.py (`to_latlon`, hulls, tile check) · theme.py (design tokens, light + dark, stylesheet) · static/ (self-hosted Geist fonts); theme also in `.streamlit/config.toml`
+- `neer/app/guided.py`: "▶ Guided demo" (first tab): six-step story on the live city using only reliable views (SVG schematic map, HTML, Plotly). `scripts/selfcheck.py` (pre-demo checks) and `run_demo.sh` (API + dashboard).
 - `neer/live.py`: live city + autonomous night watch (hidden event schedule by night, 02:00–04:00 scan, opens/continues cases itself, standing policy approves listening surveys only, digs wait for a human). UI: `neer/app/nightwatch.py` (second tab). Tests: tests/test_live.py.
 - `dataset/` (built by `scripts/build_dataset.py`): network CSVs, 37-day live city raw SCADA, night-scan summary, hidden truth, 16 scenario days. UI: `neer/app/datasetview.py` (Dataset tab); API: `GET /api/dataset[/file]`.
 - `neer/agents/explain.py`: Ask NEER - questions about a case answered by the LLM chain from the case record only (rules explainer fallback). UI: Control Room "Ask NEER (AI)"; API: `POST /api/cases/{id}/ask`.

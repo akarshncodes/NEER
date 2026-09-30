@@ -266,3 +266,21 @@ def test_blueprint_deck_builds():
     from neer.app import city3d
     d = city3d.build_blueprint()
     assert d.map_style is None and len(d.layers) >= 5
+
+
+def test_guided_demo_runs_start_to_finish():
+    """The six-step guided demo: start -> scan (case opens itself) -> investigate -> viewer refused -> approve -> ask."""
+    at = AppTest.from_file(str(config.ROOT / "neer/app/dashboard.py"), default_timeout=240).run()
+
+    def press(text):
+        [b for b in at.button if text in b.label][0].click().run()
+        assert not at.exception, at.exception
+    press("Start the city")
+    press("Run the 02:00")
+    press("Show the investigation")
+    press("Try as a")
+    assert any("REFUSED" in e.value for e in at.error)
+    press("Approve the dig")
+    assert "FIXED" in at.session_state["guided"]["nw"].cases[at.session_state["guided"]["case_id"]].state()["verdict"]
+    press("Is the leak really fixed?")
+    assert at.session_state["guided"]["step"] == 5

@@ -27,6 +27,14 @@ Six LangGraph agents own a leak case from the first signal to a proven repair. T
 - **Reasoning:** Skeptic gate and plan review; the LLM chain falls back to `rules`.
 - **Reality:** acoustic "no", NOT FIXED and PARTLY FIXED each trigger a re-plan.
 
+## Demo in 3 commands (Mac / Linux)
+```bash
+cd NEER
+uv run python scripts/selfcheck.py     # 9 checks in ~10 s: agents, night watch, safety, database, API, dataset, maps, AI keys
+./run_demo.sh                          # starts the REST API (:8000) and the dashboard (:8501)
+```
+Open **http://localhost:8501**. The first tab, **▶ Guided demo**, tells the whole story in six clicks: start the city → 02:00–04:00 scan (NEER opens a case by itself) → the agents investigate (map + team chat) → a viewer is refused / a supervisor approves → Auditor proves FIXED → ask the AI → the dataset and the live API. Every step shows a line to **say**. The script is in `docs/DEMO.md`.
+
 ## Run it
 ```bash
 cd NEER

@@ -23,7 +23,7 @@ from neer.app import components as C
 from neer.app import theme
 from dataclasses import replace
 
-from neer.app import board, city3d, datasetview, dbview, flowchart, geo, nightwatch, opsmap, sandbox, wow
+from neer.app import board, city3d, datasetview, dbview, flowchart, geo, guided, nightwatch, opsmap, sandbox, wow
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -228,7 +228,7 @@ def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool, blueprint
     bearing = c3.slider("Rotate", -180, 180, -25, 5, key="bearing3d", help="Compass rotation of the camera in degrees.")
     cam = city3d.Camera(pitch=pitch, bearing=bearing, fly_to=fly)
     deck = city3d.build_blueprint(layers, cam, width_px=520, height_px=600) if blueprint else \
-        city3d.build_deck(layers, cam, width_px=520, height_px=600, basemap=os.getenv("NEER_3D_BASEMAP", "1") == "1")
+        city3d.build_deck(layers, cam, width_px=520, height_px=600, basemap=os.getenv("NEER_3D_BASEMAP", "0") == "1")
     st.pydeck_chart(deck, width="stretch", height=600)
     st.caption(city3d.CAPTION + (f" Focus: {target[0]}." if fly and target else ""))
     st.markdown(city3d.legend_html(), unsafe_allow_html=True)
@@ -270,8 +270,11 @@ def open_live_case(nw, case) -> None:
     st.rerun()
 
 
-tab_room, tab_night, tab_board, tab_sandbox, tab_data, tab_db = st.tabs(
-    ["Control Room", "Night watch (autonomous)", "Operations board", "Twin sandbox (what-if)", "Dataset", "Database & API"])
+tab_guide, tab_room, tab_night, tab_board, tab_sandbox, tab_data, tab_db = st.tabs(
+    ["▶ Guided demo", "Control Room", "Night watch (autonomous)", "Operations board", "Twin sandbox (what-if)", "Dataset",
+     "Database & API"])
+with tab_guide:
+    guided.render(llm, dbview.API_URL)
 with tab_data:
     datasetview.render(reveal)
 with tab_night:

@@ -54,6 +54,34 @@ def _inflow_chart(zone: str, reveal: bool) -> go.Figure:
     return fig
 
 
+def night_chart(zone: str, reveal: bool) -> go.Figure:
+    """The clearest view of the data: each night's 02:00-04:00 inflow for one zone against its normal night level.
+    A leak is a step up that stays up. With reveal on, the hidden leaks in this zone are marked."""
+    from neer.sim.network import get_network
+    net = get_network()
+    df = _csv("live_city/night_scan_0200_0400.csv")
+    d = df[df["zone"] == zone]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=d["night"], y=d["normal_night_lps"], mode="lines", name="normal night",
+                             line=dict(color="#16a34a", dash="dash", width=2)))
+    fig.add_trace(go.Scatter(x=d["night"], y=d["night_inflow_lps"], mode="lines+markers", name="measured 02:00–04:00",
+                             line=dict(color="#0b3a66", width=3), marker=dict(size=7)))
+    if reveal:
+        for _, r in _csv("live_city/hidden_truth_JUDGES_ONLY.csv").iterrows():
+            ev = str(r["hidden_event"])
+            if ev.startswith("leak: node "):
+                node = ev.split("node ")[1].split(",")[0]
+                if node in net.jindex and net.zone_of(node) == zone:
+                    fig.add_vline(x=r["night"], line_dash="dot", line_color="#dc2626", line_width=2)
+                    fig.add_annotation(x=r["night"], y=1.02, yref="paper", text=f"hidden {ev[6:]}", showarrow=False,
+                                       font=dict(size=11, color="#dc2626"), xanchor="left")
+    fig.update_xaxes(title="night", dtick=2)
+    fig.update_yaxes(title="L/s entering the zone")
+    fig = C._layout(fig, 320, f"Zone {zone}: water entering between 02:00 and 04:00, night by night")
+    fig.update_layout(legend=dict(orientation="h", y=-0.28))
+    return fig
+
+
 def _pressure_heatmap() -> go.Figure:
     df = _csv("live_city/scada_pressure_hourly.csv")
     at3 = df[df["hour"] == 3].set_index("day").drop(columns=["hour", "certified_clean_history"])
@@ -83,6 +111,7 @@ def render(reveal: bool) -> None:
     c1, c2 = st.columns([1.35, 1], gap="large")
     with c1:
         zone = st.segmented_control("Zone", ["Z1", "Z2", "Z3", "Z4", "Z5"], default="Z1", key="ds_zone") or "Z1"
+        st.plotly_chart(night_chart(zone, reveal), width="stretch", config={"displayModeBar": False})
         st.plotly_chart(_inflow_chart(zone, reveal), width="stretch", config={"displayModeBar": False})
         st.caption("Each dark dot is an hour inside the 02:00–04:00 night-scan window. A step up in the dots that "
                    "stays up is a leak; a spike in the grey daytime line that is gone by night is a look-alike."
