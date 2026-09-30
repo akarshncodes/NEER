@@ -83,7 +83,7 @@ Each MCP server can also run on its own, e.g. `uv run python -m neer.mcp_servers
 ## Repository map
 ```
 neer/sim/          simulated city: Net3, 5 DMAs, 15 meters, noise, events, scenarios, fingerprint library
-neer/engine/       physics & statistics: baseline, 3 witnesses, Skeptic checks, localisation, search, acoustic, Auditor
+neer/engine/       physics & statistics: versioned baseline, 3 evidence dimensions, Skeptic checks, localisation, next-best-action planner, acoustic, independent Auditor
 neer/tools/        19 tools + resilience layer + safety validator (RBAC) + chaos switches + shared world
 neer/mcp_servers/  scada-mcp, twin-mcp, field-mcp, audit-mcp (FastMCP, stdio)
 neer/agents/       LangGraph graph, 6 agents, LLM router, MCP toolbox, CLI runner
