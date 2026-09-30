@@ -1,6 +1,6 @@
 ; Filename: /usr/local/lib/python3.11/dist-packages/wntr/library/networks/Net3.inp
 ; WNTR: 1.5.0
-; Created: 2026-09-30 11:22:27
+; Created: 2026-09-30 11:27:20
 [TITLE]
 EPANET Example Network 3
 Example showing how the percent of Lake water in a dual-source
