@@ -143,14 +143,25 @@ Every approval and refusal is traced. SCADA is read-only: no tool writes to pump
   - **timeline**
   - **evidence ledger:** when, dimension, finding, supports, reliability, source tool
 
-| Agent | Role | LLM decides (allowed set) | Deterministic guard |
+**Two brains.** The engine and tools own physics, numbers, thresholds, safety gates, tool validation and the final
+verification. The AI owns interpretation, choosing between hypotheses, deciding what evidence is missing, choosing the
+next investigation and where, explaining why, and re-planning. `rules` is the last link of the chain: it answers every
+question, so NEER runs with no keys. At every decision the AI answer is logged next to the `rules()` default.
+
+| Agent | Role | LLM decides | Deterministic guard (rules veto) |
 |---|---|---|---|
 | Sentinel | deterministic data monitor | none | detection rules, slow-leak windows |
-| Skeptic | critic | dismiss / open_case / wait_more_data; approve_plan / send_back | engine verdict; waits for another day when the signal is under 6 L/s |
-| Detective | localisation | none | numbers only from `locate_leak` |
-| Orchestrator | planner | acoustic_check / request_dig / escalate | value-ranked surveys; repeats inconclusive surveys; re-listens at a failed repair site; budget of 8 visits / 6 re-plans per round, then escalates |
-| Field Commander | field actions | none | safety validator |
-| Auditor | independent verifier | none | 999:1 to close; contractor released only on FIXED |
+| Skeptic (gate) | hypothesis judge | `most_likely` of leak / operation / planned_work / sensor_fault / temporary_demand; `missing_evidence` from replay_operation, sensor_health, get_supply_calendar, get_pressure, wait_one_day; `decision` open_case / dismiss / gather_more | runs the requested tools (max 2 extra rounds, then it must decide; `wait_one_day` only within the wait budget); **may not dismiss** when the engine verdict is `leak` and zone t > mass-balance threshold (veto recorded in timeline + ledger as `AI decision` / `vetoed by rule`); may always choose the cautious option |
+| Detective | localisation + interpretation | after `locate_leak`: evidence concentrated or spread, does more data help; `proceed` / `gather_more` | numbers only from `locate_leak` / `estimate_leak_size`; `gather_more` waits one day at most, inside the wait budget |
+| Orchestrator | planner | `action` (acoustic_check / request_dig / escalate) **and** `target_area` from the top-3 candidates (+ current area), given likelihood, info gain, crew-hours, value and the areas already surveyed | target must be a candidate; `request_dig` only after an acoustic yes in that very area (the safety validator enforces it too); a confirmed hit is not abandoned; budget of 8 visits / 6 re-plans per round; a choice worth < 50% of the best candidate is accepted but flagged `guard: low-value choice accepted` |
+| Skeptic (review) | critic of the plan | approve_plan / send_back | one send-back at most |
+| Field Commander | field actions | none | safety validator (acoustic yes, named approver with role, one open dig) |
+| Auditor | independent verifier | none | 999:1 to close; contractor released only on FIXED; never reads the crew report |
+
+- **Audit trail:** every AI decision writes a timeline entry and an evidence-ledger row (`dimension = "AI decision"`) with
+  provider, choice, rules-default choice, guard outcome (accepted / vetoed / low-value accepted) and the evidence cited.
+- **Structured answers:** `GateAnswer`, `PlanAnswer`, `InterpretAnswer`, `Decision` (`neer/agents/llm.py`). An answer that
+  fails the schema, the allowed set or the agent's `check` guard is retried once, then the next provider is tried.
 
 - **Human interrupts:** plan approval, and dig approval with role.
 - **LLM chain:** Groq → Gemini → Ollama → `rules`.

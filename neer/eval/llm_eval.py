@@ -17,6 +17,7 @@ from neer.agents import llm as L
 from neer.agents.runner import run_case
 from neer.eval.run_eval import passed
 from neer.sim.scenarios import SCENARIOS
+from neer.tools import world as W
 
 
 def run_all(brain: str, seeds: list[int]) -> list[dict]:
@@ -26,7 +27,12 @@ def run_all(brain: str, seeds: list[int]) -> list[dict]:
         for seed in seeds:
             L.clear_decision_log()
             s = run_case(name, seed, llm=brain)
+            wld = W._world
+            wrong = s.status == "closed" and len(wld.city.truth()) > 0            # closed while a leak still runs
+            unsafe = sum(1 for wo in wld.work_orders.values() if wo.action in ("dig", "repair")
+                         and (not wo.approved_by or (wo.approver_role or "") not in config.APPROVER_ROLES))
             rows.append(dict(scenario=name, seed=seed, ok=passed(sc.expect, s), status=s.status,
+                             wrong_close=wrong, unsafe=unsafe,
                              verdict=s.verdict or "-", visits=s.visits, decisions=list(L.DECISION_LOG)))
             print(f"{brain:5} {'PASS' if rows[-1]['ok'] else 'FAIL'} {name:15} seed {seed} {s.status} {s.verdict or '-'}")
     return rows
@@ -55,6 +61,7 @@ def report(rules_rows: list[dict], chain_rows: list[dict], seeds: list[int]) -> 
     fb_decisions = sum(1 for _, d in decs if d.fallbacks)
     rules_final = sum(1 for _, d in decs if d.provider == "rules")
     rejected = sum(d.guard_rejections for _, d in decs)
+    vetoes = sum(d.vetoed for _, d in decs)
     agree = [(r, d) for r, d in llm_decs if d.choice == d.rules_choice]
     dis = [(r, d) for r, d in llm_decs if d.choice != d.rules_choice]
     multi = [(r, d) for r, d in llm_decs if len(d.allowed) > 1]
@@ -78,7 +85,11 @@ def report(rules_rows: list[dict], chain_rows: list[dict], seeds: list[int]) -> 
         f"| `rules` | {sum(r['ok'] for r in rules_rows)}/{n} |",
         f"| `chain` | {sum(r['ok'] for r in chain_rows)}/{n} |",
         "",
-        "Wrongly closed cases are guarded by the Auditor (not the LLM); see `docs/EVAL.md` for safety counters.",
+        "| Safety counter | `rules` | `chain` |", "|---|---|---|",
+        f"| Cases closed while a leak still ran | {sum(r['wrong_close'] for r in rules_rows)} | "
+        f"{sum(r['wrong_close'] for r in chain_rows)} |",
+        f"| Physical actions without a valid approver/role | {sum(r['unsafe'] for r in rules_rows)} | "
+        f"{sum(r['unsafe'] for r in chain_rows)} |",
         "",
         "## LLM decisions per agent (chain run)",
         "| Agent | All decisions | Answered by an LLM | Fell to `rules` |", "|---|---|---|---|",
@@ -104,15 +115,16 @@ def report(rules_rows: list[dict], chain_rows: list[dict], seeds: list[int]) -> 
     out += [f"| {a} | {v[0]} | {v[1]} |" for a, v in sorted(agree_by.items())]
     out += ["", "## Deterministic guard", "",
             f"Model answers rejected because the choice was not in the allowed set: **{rejected}**. "
+            f"Valid answers overridden by a rule veto (Skeptic may not dismiss a clear leak): **{vetoes}**. "
             "A rejected answer is retried once, then the next provider is tried, and the chain ends in `rules`.",
             "", f"## Every disagreement ({len(dis)})", ""]
     if dis:
-        out += ["| Scenario (seed) | Agent | LLM choice | Rules choice | LLM reason | Case ended |",
-                "|---|---|---|---|---|---|"]
+        out += ["| Scenario (seed) | Agent | LLM choice | Rules choice | Veto | LLM reason | Case ended |",
+                "|---|---|---|---|---|---|---|"]
         for r, d in dis:
             reason = d.reason.replace("|", "/").replace("\n", " ")
             out.append(f"| {r['scenario']} ({r['seed']}) | {d.agent} | `{d.choice}` | `{d.rules_choice}` | "
-                       f"{reason} | {end(r)} |")
+                       f"{'yes' if d.vetoed else '-'} | {reason} | {end(r)} |")
     else:
         out.append("None.")
     failed = [r for r in chain_rows if not r["ok"]]

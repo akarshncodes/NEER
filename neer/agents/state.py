@@ -26,6 +26,8 @@ class CaseState(BaseModel):
     tier: str = "NONE"
     window_days: int = 1                       # how many days of data raised the alarm
     alarm_excess_lps: float = 0.0
+    alarm_t: float = 0.0                       # worst zone t-score at the alarm (the rule veto compares it with Z_THR)
+    detective_waited: bool = False             # the Detective may ask for one more day of data, once
     waits: int = 0
     sim_day: int = 0
     zone: Optional[str] = None
@@ -54,5 +56,6 @@ class CaseState(BaseModel):
     llr_trace: list[float] = Field(default_factory=list)
     contractor: Optional[str] = None
     evidence: list[str] = Field(default_factory=list)
+    area_history: Annotated[list[dict], operator.add] = Field(default_factory=list)  # {area, action, result}
     timeline: Annotated[list[dict], operator.add] = Field(default_factory=list)   # TimelineEntry dicts
     ledger: Annotated[list[dict], operator.add] = Field(default_factory=list)     # evidence ledger rows

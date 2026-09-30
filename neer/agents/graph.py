@@ -1,7 +1,8 @@
 """The NEER LangGraph: who runs after whom.
 
 START -> sentinel -(no alarm)-> END
-                  -> skeptic_gate -(dismiss)-> END (watch)
+                  -> skeptic_gate -(dismiss)-> END (watch) | -(gather more: a day)-> wait_day
+                                  -> detective -(gather more: a day)-> wait_day
                                   -> detective -> orchestrator -> skeptic_review -(send back)-> detective
                                                                                  -> approve_plan [HUMAN] -> field_commander
 orchestrator (after the first plan) -> field_commander (acoustic) | approve_dig [HUMAN] -> field_commander (dig)
@@ -28,6 +29,8 @@ def _after_gate(s: CaseState) -> str:
 
 
 def _after_detective(s: CaseState) -> str:
+    if s.status == "waiting":
+        return "wait_day"
     return "orchestrator" if s.last_event != "inconclusive" else "escalate"
 
 

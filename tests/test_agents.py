@@ -62,7 +62,7 @@ def test_invalid_llm_choice_is_rejected(monkeypatch):
             return llm.Decision(choice="launch_rocket", reason="nope")
     monkeypatch.setenv("NEER_LLM_CHAIN", "groq:fake,rules")
     monkeypatch.setattr(llm, "_available", lambda p: True)
-    monkeypatch.setattr(llm, "_model", lambda p, m: Fake())
+    monkeypatch.setattr(llm, "_model", lambda p, m, schema=None: Fake())
     d = llm.decide("Test", "sys", "situation", ["dismiss", "open_case"], rules=lambda: ("open_case", "r"))
     assert d.choice == "open_case" and d.provider == "rules" and len(d.fallbacks) == 2
 
@@ -73,7 +73,7 @@ def test_valid_llm_choice_is_used(monkeypatch):
             return llm.Decision(choice="dismiss", reason="pump trip explains it")
     monkeypatch.setenv("NEER_LLM_CHAIN", "groq:fake,rules")
     monkeypatch.setattr(llm, "_available", lambda p: True)
-    monkeypatch.setattr(llm, "_model", lambda p, m: Fake())
+    monkeypatch.setattr(llm, "_model", lambda p, m, schema=None: Fake())
     d = llm.decide("Test", "sys", "s", ["dismiss", "open_case"], rules=lambda: ("open_case", "r"))
     assert d.choice == "dismiss" and d.provider == "groq:fake"
 
@@ -116,7 +116,7 @@ def test_invalid_llm_choice_falls_through_to_rules(monkeypatch):
     monkeypatch.setenv("NEER_LLM_CHAIN", "groq:fake1,gemini:fake2,rules")
     monkeypatch.setenv("GROQ_API_KEY", "x")
     monkeypatch.setenv("GOOGLE_API_KEY", "x")
-    monkeypatch.setattr(llm, "_model", lambda provider, model: FakeModel(provider))
+    monkeypatch.setattr(llm, "_model", lambda provider, model, schema=None: FakeModel(provider))
     llm.clear_decision_log()
 
     d = llm.decide("Orchestrator", "sys", "situation", ["acoustic_check", "escalate"],
