@@ -11,9 +11,9 @@ import plotly.graph_objects as go
 
 from neer.app.components import AGENT_COLOURS
 from neer.app.opsmap import rgba
+from neer.app.theme import T
 
 HW, HH = 0.72, 0.42                       # node half width / half height
-ORANGE, BLUE, GREYLINE = "#eb6834", "#1d5aa6", "#c9c8c2"
 
 # id: (x, y, title, owner line, who, tooltip)
 NODES = {
@@ -74,6 +74,8 @@ def progress(history_next: list[tuple[str, ...]], status: str) -> tuple[list[str
 
 
 def flow_figure(order: list[str], current: tuple[str, ...], height: int = 380) -> go.Figure:
+    c = T()
+    ORANGE, BLUE, GREYLINE = c["run"], c["accent"], c["line2"]
     visits = {n: order.count(n) for n in set(order)}
     taken = {(a, b) for a, b in zip(order, order[1:])}
     if current:                                        # the step that just ended points into the current node
@@ -89,13 +91,13 @@ def flow_figure(order: list[str], current: tuple[str, ...], height: int = 380) -
                                  line=dict(color=colour, width=3 if hit else 1.3, dash="dot" if loop and not hit else "solid")))
         ann.append(dict(x=pts[-1][0], y=pts[-1][1], ax=pts[-2][0], ay=pts[-2][1], xref="x", yref="y", axref="x", ayref="y",
                         showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.6, arrowcolor=colour, text=""))
-        ann.append(dict(x=lx, y=ly, text=label, showarrow=False, font=dict(size=10, color=colour if hit else "#8f8e87"),
-                        bgcolor="rgba(255,255,255,0.9)", borderpad=1))
+        ann.append(dict(x=lx, y=ly, text=label, showarrow=False, font=dict(size=10, color=colour if hit else c["faint"]),
+                        bgcolor=c["surface"], borderpad=1))
     shapes = []
     for nid, (x, y, title, owner, who, tip) in NODES.items():
-        colour = AGENT_COLOURS.get(who, "#52514e")
+        colour = AGENT_COLOURS.get(who, c["muted"])
         run, seen = nid in current, nid in visits
-        fill = "#fff1d9" if run else rgba(colour, 0.16) if seen else "#f6f5f1"
+        fill = c["run_soft"] if run else rgba(colour, 0.16) if seen else c["surface2"]
         line = ORANGE if run else colour if seen else GREYLINE
         shapes.append(dict(type="rect", x0=x - HW, x1=x + HW, y0=y - HH, y1=y + HH, fillcolor=fill,
                            line=dict(color=line, width=4 if run else 1.8 if seen else 1.2), layer="below"))
@@ -103,15 +105,15 @@ def flow_figure(order: list[str], current: tuple[str, ...], height: int = 380) -
             ann.append(dict(x=x + HW - 0.12, y=y + HH, text=f"<b>×{visits[nid]}</b>", showarrow=False,
                             font=dict(size=9, color="#ffffff"), bgcolor=line, borderpad=1))
         ann.append(dict(x=x, y=y + 0.08, text=f"<b>{title}</b>", showarrow=False,
-                        font=dict(size=12, color="#0b0b0b" if (seen or run) else "#8f8e87")))
-        ann.append(dict(x=x, y=y - 0.17, text=owner, showarrow=False, font=dict(size=9, color="#52514e" if (seen or run) else "#a9a8a1")))
+                        font=dict(size=12, color=c["ink"] if (seen or run) else c["faint"])))
+        ann.append(dict(x=x, y=y - 0.17, text=owner, showarrow=False, font=dict(size=9, color=c["muted"] if (seen or run) else c["faint"])))
         if run:
             tag = "CASE ENDED" if nid in ("closed", "watch") else "WAITING FOR HUMAN" if nid.startswith("approve") else "RUNNING NOW"
             ann.append(dict(x=x, y=y + HH + 0.2, text=f"<b>{tag}</b>",
                             showarrow=False, font=dict(size=9, color="#ffffff"), bgcolor=ORANGE, borderpad=2))
         fig.add_trace(go.Scatter(x=[x], y=[y], mode="markers", marker=dict(size=40, opacity=0), showlegend=False,
                                  hovertext=f"{title} ({owner}): {tip}", hoverinfo="text"))
-    fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="white", plot_bgcolor="white",
+    fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor=c["surface"], plot_bgcolor=c["surface"],
                       shapes=shapes, annotations=ann, showlegend=False,
                       xaxis=dict(visible=False, range=[-0.2, 17.6], fixedrange=True),
                       yaxis=dict(visible=False, range=[-0.1, 6.15], fixedrange=True))

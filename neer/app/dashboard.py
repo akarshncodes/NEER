@@ -20,6 +20,7 @@ from langgraph.types import Command
 from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
+from neer.app import theme
 from neer.app import board, flowchart, geo, opsmap, sandbox
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
@@ -27,8 +28,9 @@ from neer.tools import chaos
 from neer.tools import world as W
 from neer.tools.resilience import read_trace
 
-st.set_page_config(page_title="NEER Control Room", page_icon="💧", layout="wide")
-st.markdown(C.CSS, unsafe_allow_html=True)
+st.set_page_config(page_title="NEER Control Room", page_icon=":material/water_drop:", layout="wide")
+theme.set_theme(getattr(st.context.theme, "type", None) or "light")                   # follows Streamlit's light / dark setting
+st.markdown(theme.css(), unsafe_allow_html=True)
 ss = st.session_state
 net = get_network()
 
@@ -89,51 +91,54 @@ def record_current() -> None:
 
 # ------------------------------------------------------------------ sidebar
 with st.sidebar:
-    st.markdown("### 💧 NEER")
-    st.caption("Agentic AI leak detective · SC-02")
+    st.markdown('<div class="brand">NEER</div><div class="brand-sub">Leak investigation, verified</div>', unsafe_allow_html=True)
+    st.markdown("#### Case")
     names = list(SCENARIOS)
     scen = st.selectbox("Scenario", names, index=names.index("leak_20"),
-                        format_func=lambda n: f"{n} — {SCENARIOS[n].title}")
+                        format_func=lambda n: f"{n}: {SCENARIOS[n].title}")
     seed = st.number_input("Seed", value=7, step=1)
+    st.markdown("#### Reasoning and tools")
     llm = st.radio("Reasoning", ["rules", "chain"], horizontal=True,
                    format_func=lambda x: "Rules only" if x == "rules" else "LLM chain")
     if llm == "chain":
         keys = {"Groq": bool(os.getenv("GROQ_API_KEY")), "Gemini": bool(os.getenv("GOOGLE_API_KEY")),
                 "Ollama": os.getenv("NEER_USE_OLLAMA") == "1"}
-        st.caption("Chain: " + " → ".join(f"{k} {'✅' if v else '⛔'}" for k, v in keys.items()) + " → rules ✅")
+        st.caption("Chain: " + " → ".join(f"{k} ({'key set' if v else 'off'})" for k, v in keys.items()) + " → rules")
     brain_note = st.empty()        # filled after the buttons have run, so its counts are current
     map_mode = st.radio("Map", ["city", "schematic"], horizontal=True,
                         format_func=lambda x: "City map" if x == "city" else "Schematic")
     mode = st.radio("Tools via", ["direct", "mcp"], horizontal=True,
-                    format_func=lambda x: "in-process" if x == "direct" else "4 MCP servers")
+                    format_func=lambda x: "In-process" if x == "direct" else "4 MCP servers")
+    st.markdown("#### Approval")
     ss.approver = st.text_input("Approver name", value=ss.get("approver", "Supervisor"))
     ss.role = st.selectbox("Approver role (access control)", ["supervisor", "engineer", "field crew", "viewer"],
                            help="Only supervisor / engineer may approve a dig - the safety validator refuses others.")
+    st.markdown("#### Run")
     ss.speed = st.slider("Animation (s per step)", 0.0, 1.5, 0.35, 0.05)
     c1, c2 = st.columns(2)
-    if c1.button("▶ Start case", type="primary", width="stretch"):
+    if c1.button("Start case", type="primary", width="stretch", icon=":material/play_arrow:"):
         start(scen, int(seed), mode, llm)
-    if c2.button("⏩ Autopilot", width="stretch", disabled=not ss.get("pending")):
+    if c2.button("Autopilot", width="stretch", disabled=not ss.get("pending"), icon=":material/fast_forward:"):
         autopilot()
-    st.markdown("#### ⚡ Chaos switches")
-    if st.button("🔌 SCADA times out (×2)", width="stretch"):
+    st.markdown("#### Chaos switches")
+    if st.button("SCADA times out (x2)", width="stretch", icon=":material/wifi_off:"):
         chaos.set_toggle("scada_timeout", 2)
-    if st.button("🤖 LLM returns broken JSON (×2)", width="stretch"):
+    if st.button("LLM returns broken JSON (x2)", width="stretch", icon=":material/data_object:"):
         chaos.set_toggle("llm_bad_json", 2)
-    if st.button("📉 Pressure sensor 241 dies", width="stretch"):
+    if st.button("Pressure sensor 241 dies", width="stretch", icon=":material/sensors_off:"):
         chaos.set_toggle("sensor_dies", "241")
-    if st.button("🎧 Crew hears nothing (next check)", width="stretch"):
+    if st.button("Crew hears nothing (next check)", width="stretch", icon=":material/hearing_disabled:"):
         chaos.set_toggle("crew_finds_nothing", 1)
-    if st.button("Reset chaos", width="stretch"):
+    if st.button("Reset chaos", width="stretch", icon=":material/restart_alt:"):
         chaos.reset()
     active = {k: v for k, v in chaos.get().items() if v}
     st.caption("Active: " + (", ".join(f"{k}={v}" for k, v in active.items()) if active else "none"))
     reveal = st.toggle("Reveal true leak (judges only)", value=False)
 
 # ------------------------------------------------------------------ header + KPIs
-st.markdown("# NEER Control Room")
-st.caption("SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN · never trusts 'job done' without proof. "
-           "Simulated city: EPA Net3, 5 zones, 20 pressure sensors, 15 zone meters.")
+st.markdown('<div class="pagehead"><span class="title">NEER Control Room</span><span class="tag">Finds the leak, sends a crew, '
+            'then proves the repair worked. Simulated city: EPA Net3, 5 zones, 20 pressure sensors, 15 zone meters.</span></div>',
+            unsafe_allow_html=True)
 w = current_world()
 v = case_values()
 record_current()
@@ -145,16 +150,13 @@ else:
     brain_note.info(f"**Brain: LLM chain** (Groq → Gemini → rules). Live models answered {_ai} decisions; "
                     f"{_fb} fell back to rules; {_veto} refused by safety rules. Rules still own physics, "
                     "thresholds, the safety validator and the Auditor.")
-cols = st.columns([1, 1, 1, 1, 1, 1, 1, 2.1, 1])
-for col, (label, val) in zip(cols, [
-        ("Cases", k.get("cases", 0)), ("False alarms avoided", k.get("false_alarms_avoided", 0)),
-        ("Acoustic checks", k.get("acoustic_checks", 0)), ("Digs", k.get("digs", 0)),
-        ("Wasted digs", k.get("wasted_digs", 0)), ("Repairs proven", k.get("repairs_verified", 0)),
-        ("Crew-hours", f"{k.get('crew_hours', 0):.1f}"),
-        ("AI decisions · fallbacks · refused by safety rules", f"{_ai} · {_fb} · {_veto}"),
-        ("Water saved", f"{k.get('litres_saved_per_day', 0) / 1000:,.0f} m³/d")]):
-    col.markdown(f'<div class="kpi"><div class="v">{val}</div><div class="l">{label}</div></div>',
-                 unsafe_allow_html=True)
+st.markdown(C.kpi_strip([
+    ("Cases", k.get("cases", 0)), ("False alarms avoided", k.get("false_alarms_avoided", 0)),
+    ("Acoustic checks", k.get("acoustic_checks", 0)), ("Digs", k.get("digs", 0)),
+    ("Wasted digs", k.get("wasted_digs", 0)), ("Repairs proven", k.get("repairs_verified", 0)),
+    ("Crew-hours", f"{k.get('crew_hours', 0):.1f}"),
+    ("AI decisions · fallbacks · refused by safety rules", f"{_ai} · {_fb} · {_veto}"),
+    ("Water saved", f"{k.get('litres_saved_per_day', 0) / 1000:,.0f} m³/d")], highlight=8, wide=(7,)), unsafe_allow_html=True)
 
 eff_mode = map_mode
 if map_mode == "city" and not geo.tiles_available():
@@ -162,7 +164,7 @@ if map_mode == "city" and not geo.tiles_available():
 
 def run_whatif_case(name: str) -> None:
     start(name, int(seed), mode, llm)
-    st.toast("Case started with the injected event. Open the Control Room tab to follow it.", icon="▶")
+    st.toast("Case started with the injected event. Open the Control Room tab to follow it.", icon=":material/play_arrow:")
     st.rerun()                                                                       # the Control Room tab reads fresh state
 
 
@@ -192,19 +194,13 @@ with tab_room:
         st.stop()
 
     status = v.get("status", "open")
-    colour = {"closed": "#1a8a3c", "watch": "#b87800", "no_alarm": "#52514e", "escalated": "#c73636"}.get(status, "#1d5aa6")
-    st.markdown(f'<span class="badge" style="background:{colour};color:#fff">{status.upper()}</span>'
-                f'<span class="badge" style="background:#eef3fb">Tier {v.get("tier")}</span>'
-                f'<span class="badge" style="background:#eef3fb">Zone {v.get("zone") or "—"}</span>'
-                f'<span class="badge" style="background:#eef3fb">Visits {v.get("visits", 0)} · re-plans {v.get("replans", 0)}</span>'
-                + (f'<span class="badge" style="background:#e9f5ec">Verdict {v["verdict"]}</span>' if v.get("verdict") else ""),
-                unsafe_allow_html=True)
-
-    with st.expander("Agent flow and latest decisions", expanded=True):
-        seq = [s.next for s in reversed(list(ss.graph.get_state_history(ss.cfg)))] if "graph" in ss else []
-        done_order, running = flowchart.progress(seq, status)
-        st.plotly_chart(flowchart.flow_figure(done_order, running), width="stretch", config={"displayModeBar": False})
-        st.markdown(C.decision_cards(v.get("timeline", [])), unsafe_allow_html=True)
+    colour = {"closed": "var(--good)", "watch": "var(--warn)", "no_alarm": "var(--faint)", "escalated": "var(--bad)"}.get(status, "var(--accent)")
+    st.markdown(f'<div class="chips"><span class="badge state" style="background:{colour}">{status.upper()}</span>'
+                f'<span class="badge soft">Tier {v.get("tier")}</span>'
+                f'<span class="badge soft">Zone {v.get("zone") or "-"}</span>'
+                f'<span class="badge soft">Visits {v.get("visits", 0)}, re-plans {v.get("replans", 0)}</span>'
+                + (f'<span class="badge good">Verdict {v["verdict"].replace("_", " ")}</span>' if v.get("verdict") else "")
+                + '</div>', unsafe_allow_html=True)
 
     left, mid, right = st.columns([1.55, 0.9, 1.0])
 
@@ -257,12 +253,12 @@ with tab_room:
                 drop = w.baseline.pressure_residual(hist[-1:]).mean(0)
                 dips = [(net.sensors[i], float(drop[i])) for i in np.argsort(-drop)[:2]]
             nxt = {"acoustic_check": f"acoustic loggers in {v.get('current_area')}",
-                   "request_dig": f"dig in {v.get('current_area')}"}.get(v.get("next_action"), v.get("next_action") or "—")
+                   "request_dig": f"dig in {v.get('current_area')}"}.get(v.get("next_action"), v.get("next_action") or "-")
             if status == "closed":
                 nxt = "case closed with proof"
             st.markdown(C.evidence_card(v["case_id"], v.get("tier", ""), zone,
                                         float(w.baseline.zone_excess(hist[-1:])[zi]) if status != "closed" else v.get("leak_size_lps", 0),
-                                        dips, case.masked if case else [], v.get("skeptic_reason", "")[:90] or "—",
+                                        dips, case.masked if case else [], v.get("skeptic_reason", "")[:90] or "-",
                                         v.get("areas", []), nxt), unsafe_allow_html=True)
         if v.get("llr_trace"):
             st.plotly_chart(C.auditor_meter(v["llr_trace"]), width="stretch", config={"displayModeBar": False})
@@ -272,13 +268,13 @@ with tab_room:
         req = ss.get("pending")
         if req:
             what = "Approve the search plan" if req["type"] == "approve_plan" else f"Approve a DIG in {req.get('area')}"
-            st.markdown(f'<div class="approve"><b>🧑‍💼 Human decision needed: {what}</b><br>'
+            st.markdown(f'<div class="approve"><b>Decision needed: {what}</b><br>'
                         f'<span style="font-size:.85rem">{req.get("reason", "")}</span></div>', unsafe_allow_html=True)
             a, b = st.columns(2)
-            if a.button("✅ Approve", type="primary", width="stretch"):
+            if a.button("Approve", type="primary", width="stretch", icon=":material/check:"):
                 answer(True)
                 st.rerun()
-            if b.button("✋ Reject", width="stretch"):
+            if b.button("Reject", width="stretch", icon=":material/close:"):
                 answer(False)
                 st.rerun()
         tab1, tab3, tab2 = st.tabs(["Agent timeline", "Evidence ledger", "Tool trace"])
@@ -299,8 +295,14 @@ with tab_room:
             rows = [r for r in read_trace(80) if r["agent"] != "mcp-server"]
             if rows:
                 df = pd.DataFrame(rows)[["agent", "tool", "ok", "ms", "summary"]]
-                df["ok"] = df["ok"].map({1: "✅", 0: "⚠️"})
+                df["ok"] = df["ok"].map({1: "ok", 0: "error"})
                 df["ms"] = df["ms"].round(0)
                 st.dataframe(df, hide_index=True, width="stretch", height=480)
             else:
                 st.caption("No tool calls yet.")
+
+    with st.expander("Agent flow and latest decisions", expanded=True):
+        seq = [s.next for s in reversed(list(ss.graph.get_state_history(ss.cfg)))] if "graph" in ss else []
+        done_order, running = flowchart.progress(seq, status)
+        st.plotly_chart(flowchart.flow_figure(done_order, running), width="stretch", config={"displayModeBar": False})
+        st.markdown(C.decision_cards(v.get("timeline", [])), unsafe_allow_html=True)

@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 
 from neer.app import geo
 from neer.app.components import ZONE_COLOURS
+from neer.app.theme import T
 from neer.sim.network import Network, get_network
 
 WHATIF_SCALE = [[0, "#f3efff"], [0.5, "#9a78e0"], [1, "#3d1a8c"]]              # violet: predicted pressure drop
@@ -273,7 +274,7 @@ def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "
                                                      font=dict(size=11)),
                                           orientation="h", x=0.02, y=0.03, xanchor="left", yanchor="bottom",
                                           len=0.42, thickness=10, tickvals=[0, 1], ticktext=["low", "high"],
-                                          bgcolor="rgba(255,255,255,0.85)", tickfont=dict(size=10))))
+                                          bgcolor=T()["surface"], tickfont=dict(size=10, color=T()["ink"]))))
 
     if L.whatif_drop and whatif_max > 0:
         p0 = cv.pos(next(iter(L.whatif_drop))).reshape(1, 2)
@@ -281,7 +282,7 @@ def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "
                 marker=dict(size=1, color=[0.5], cmin=0, cmax=whatif_max, colorscale=WHATIF_SCALE, showscale=True,
                             colorbar=dict(title=dict(text="Predicted pressure drop (m)", side="top", font=dict(size=11)),
                                           orientation="h", x=0.52 if heat_nodes else 0.02, y=0.03, xanchor="left",
-                                          yanchor="bottom", len=0.42, thickness=10, bgcolor="rgba(255,255,255,0.85)",
+                                          yanchor="bottom", len=0.42, thickness=10, bgcolor=T()["surface"],
                                           tickfont=dict(size=10))))
 
     # ---- layout: view, caption, no axes
@@ -294,18 +295,18 @@ def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "
             if tr.marker is not None and tr.mode and "markers" in tr.mode:
                 tr.unselected = dict(marker=dict(opacity=tr.marker.opacity if tr.marker.opacity is not None else 1.0))
     caption = CAPTION if cv.city else "Schematic view (EPA Net3 coordinates)"
-    fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, paper_bgcolor="white",
-                      uirevision=uirevision, font=dict(family="Inter, sans-serif", size=12, color="#52514e"),
+    fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, paper_bgcolor=T()["surface"],
+                      uirevision=uirevision, font=dict(family="Geist, sans-serif", size=12, color=T()["muted"]),
                       annotations=[dict(text=caption, xref="paper", yref="paper", x=0.01, y=0.99, xanchor="left",
-                                        yanchor="top", showarrow=False, font=dict(size=10, color="#52514e"),
-                                        bgcolor="rgba(255,255,255,0.85)", borderpad=3)])
+                                        yanchor="top", showarrow=False, font=dict(size=10, color=T()["muted"]),
+                                        bgcolor=T()["surface"], borderpad=3)])
     if cv.city:
         (lat0, lon0), (lat1, lon1) = geo.to_latlon(np.array([lo, hi]), cv.raw)
         fig.update_layout(map=dict(style="open-street-map", uirevision=uirevision,
                                    center=dict(lat=(lat0 + lat1) / 2, lon=(lon0 + lon1) / 2),
                                    zoom=_zoom_for(np.array([lat0, lon0]), np.array([lat1, lon1]), width_px, height)))
     else:
-        fig.update_layout(plot_bgcolor="#f7f7f4")
+        fig.update_layout(plot_bgcolor=T()["surface2"])
         fig.update_xaxes(visible=False, range=[lo[0], hi[0]], constrain="domain")
         fig.update_yaxes(visible=False, range=[lo[1], hi[1]], scaleanchor="x", constrain="domain")
     return fig

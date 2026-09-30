@@ -69,14 +69,14 @@ def _section(pdf: _Pdf, r: dict) -> None:
     pdf.cell(0, 8, f"Case {r['case_id']}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("DejaVu", "", 8)
     pdf.set_text_color(90, 90, 90)
-    pdf.cell(0, 4, f"Scenario {r['scenario']} · seed {r.get('seed', '—')} · generated {datetime.now():%Y-%m-%d %H:%M}",
+    pdf.cell(0, 4, f"Scenario {r['scenario']} · seed {r.get('seed', '-')} · generated {datetime.now():%Y-%m-%d %H:%M}",
              new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
-    rows = [("Zone", r.get("zone") or "—"), ("Leak size", f"{r['leak_size_lps']:.1f} L/s" if r["leak_size_lps"] else "—"),
+    rows = [("Zone", r.get("zone") or "-"), ("Leak size", f"{r['leak_size_lps']:.1f} L/s" if r["leak_size_lps"] else "-"),
             ("Verdict", (r.get("verdict") or {"watch": "Dismissed, on watch", "no_alarm": "No alarm",
                                                "escalated": "Escalated to a supervisor"}.get(r["status"], r["status"])).replace("_", " ")),
-            ("Contractor decision", r.get("contractor") or "—"), ("Acoustic visits / re-plans", f"{r['visits']} / {r['replans']}"),
+            ("Contractor decision", r.get("contractor") or "-"), ("Acoustic visits / re-plans", f"{r['visits']} / {r['replans']}"),
             ("Water saved", f"{r['kpi']['litres_saved_per_day'] / 1000:,.0f} m³/day"),
             ("Crew-hours", f"{r['kpi']['crew_hours']:.1f}")]
     pdf.set_font("DejaVu", "", 8.5)

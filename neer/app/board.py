@@ -73,11 +73,11 @@ def verdict_chip(r: dict) -> tuple[str, str]:
 
 def card_html(r: dict, active: bool = False) -> str:
     label, cls = verdict_chip(r)
-    size = f"{r['leak_size_lps']:.1f} L/s" if r["leak_size_lps"] else "—"
+    size = f"{r['leak_size_lps']:.1f} L/s" if r["leak_size_lps"] else "-"
     contractor = f' · contractor {html.escape(str(r["contractor"]))}' if r.get("contractor") else ""
     return (f'<div class="kcard{" kactive" if active else ""}"><div class="kid">{html.escape(r["case_id"])} '
             f'<span class="vchip {cls}">{html.escape(label)}</span></div>'
-            f'<div class="kmeta">{html.escape(r["scenario"])} · zone {html.escape(str(r["zone"] or "—"))}</div>'
+            f'<div class="kmeta">{html.escape(r["scenario"])} · zone {html.escape(str(r["zone"] or "-"))}</div>'
             f'<div class="kmeta">leak {size} · {r["visits"]} visit{"s" if r["visits"] != 1 else ""}{contractor}</div></div>')
 
 
@@ -102,8 +102,8 @@ def render_tab(run_all, active_id: Optional[str]) -> None:
     tiles = [("Water saved per day", f"{imp['water_m3_per_day']:,.0f} m³"), ("Crew-hours", f"{imp['crew_hours']:.1f}"),
              ("Wasted digs avoided", f"{imp['wasted_digs_avoided']}"), ("False alarms avoided", f"{imp['false_alarms_avoided']}"),
              (f"Money saved per day · at ₹{config.COST_PER_M3_INR}/m³ (assumption)", f"₹{imp['inr_per_day']:,.0f}")]
-    for col, (label, val) in zip(st.columns([1, 1, 1, 1, 1.5]), tiles):
-        col.markdown(f'<div class="kpi"><div class="v">{val}</div><div class="l">{label}</div></div>', unsafe_allow_html=True)
+    from neer.app.components import kpi_strip
+    st.markdown(kpi_strip(tiles, highlight=4, wide=(4,)), unsafe_allow_html=True)
     st.caption(f"Sums over the {len(records)} case(s) run in this session, in the simulated city. Money uses an assumed "
                f"₹{config.COST_PER_M3_INR} per m³ (config.COST_PER_M3_INR), not a measured tariff. "
                "\"Wasted digs avoided\" counts quiet acoustic surveys: areas cleared by listening instead of digging.")

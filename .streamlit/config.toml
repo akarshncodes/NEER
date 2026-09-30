@@ -1,0 +1,36 @@
+# NEER Control Room theme. Display only. Colours mirror neer/app/theme.py.
+[server]
+enableStaticServing = true          # serves neer/app/static (Geist fonts) at /app/static
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+font = "Geist"
+codeFont = "Geist Mono"
+baseRadius = "0.5rem"
+showWidgetBorder = true
+
+[[theme.fontFaces]]
+family = "Geist"
+url = "app/static/Geist.woff2"
+weight = "100 900"
+
+[[theme.fontFaces]]
+family = "Geist Mono"
+url = "app/static/GeistMono.woff2"
+weight = "100 900"
+
+[theme.light]
+primaryColor = "#1f5fae"
+backgroundColor = "#f6f7f9"
+secondaryBackgroundColor = "#eceff3"
+textColor = "#10151c"
+borderColor = "#dfe3e9"
+
+[theme.dark]
+primaryColor = "#5fa2ec"
+backgroundColor = "#0d1117"
+secondaryBackgroundColor = "#131921"
+textColor = "#e7ebf0"
+borderColor = "#283140"
