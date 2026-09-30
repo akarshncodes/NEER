@@ -90,6 +90,7 @@ P_THR_INFLATE = 1.25            # safety factor on pressure-score threshold
 Z_THR = 4.0                     # water witness: zone t-score threshold
 LATE_HOURS = slice(18, 24)      # persistence witness window
 LATE_T_THR = 2.5
+NIGHT_HOURS = slice(2, 5)       # 02:00-04:00 minimum night flow window (night watch + Skeptic)
 HOT_Z = 2.5                     # "anomalous hour" threshold (pressure z-RMS)
 HOT_FLOW_T = 4.0
 TEMPER = 0.1                    # how strongly pressure fingerprints sharpen the map

@@ -45,6 +45,7 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
   - graph.py
   - runner.py (CLI)
 - `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS) · opsmap.py (city map on OpenStreetMap / schematic) · city3d.py (3D city view, pydeck; same layers as opsmap) · flowchart.py (live agent graph) · sandbox.py (twin what-if tab) · board.py (Kanban + impact strip) · report.py (case PDF) · geo.py (`to_latlon`, hulls, tile check) · theme.py (design tokens, light + dark, stylesheet) · static/ (self-hosted Geist fonts); theme also in `.streamlit/config.toml`
+- `neer/live.py`: live city + autonomous night watch (hidden event schedule by night, 02:00–04:00 scan, opens/continues cases itself, standing policy approves listening surveys only, digs wait for a human). UI: `neer/app/nightwatch.py` (first tab). Tests: tests/test_live.py.
 - `neer/store.py`: SQLite case database (data/neer.db; tables cases, timeline, ledger, approvals, work_orders). Written by graph.py (every node, via `_recorded`) and tools/field.py (work orders); read by the dashboard and the API.
 - `neer/api/server.py`: FastAPI REST API (`uv run uvicorn neer.api.server:app --port 8000`, docs at /docs). `neer/app/dbview.py`: the "Database & API" tab.
 - `neer/eval/run_eval.py`: writes docs/EVAL.md · `neer/eval/llm_eval.py`: docs/LLM_EVAL.md · `neer/eval/ablation.py`: docs/ABLATION.md. Each calls `config.use_private_runtime()` first, so it never shares chaos/world/trace files with a running dashboard.

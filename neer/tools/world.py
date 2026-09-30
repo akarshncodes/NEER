@@ -92,6 +92,14 @@ class World:
         return out
 
     def advance_day(self) -> DayData:
+        """Next day of SCADA data. In the live city (neer/live.py) scheduled hidden events start first."""
+        for item in getattr(self, "schedule", {}).pop(self.city.day, []):
+            if item == "misfix":
+                self.misfix_remaining += 1                 # the next repair is done on the wrong pipe
+            elif isinstance(item, tuple) and item[0] == "fix_sensor":
+                self.city.fix_sensor(item[1])              # maintenance repaired a faulty sensor
+            else:
+                self.city.add_event(item)
         return self.city.advance_day()
 
     def case(self, case_id: str) -> CaseRecord:

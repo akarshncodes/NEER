@@ -88,7 +88,9 @@ def skeptic_check(b: Baseline, day) -> SkepticVerdict:
     hot = (zh > config.HOT_Z) | (fh > config.HOT_FLOW_T)
     late_t = float(b.zone_t(current, config.LATE_HOURS, widen=2.0).max())
     single_day = len(days) == 1
-    if single_day and not det.persistence and ((hot.sum() <= 4 and not hot[-6:].any())
+    # minimum night flow (02:00-04:00): a short daytime event is over by then, a leak is not
+    night_t = float(b.zone_t(current, config.NIGHT_HOURS, widen=2.0).max())
+    if single_day and not det.persistence and night_t < config.LATE_T_THR and ((hot.sum() <= 4 and not hot[-6:].any())
                        or (late_t < config.LATE_T_THR and not (zh[-6:] > config.HOT_Z).any())):
         return SkepticVerdict(
             verdict=SkepticKind.temporary, masked_sensors=bad,

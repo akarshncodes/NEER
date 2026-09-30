@@ -26,7 +26,11 @@ def verify_repair(case_id: str) -> AuditVerdict:
             raise ValueError("no repair recorded for this case yet")
         net, b = w.city.net, w.baseline
         # --- the Auditor's own pre-repair measurement (last 2 days before the repair)
-        before = [d for d in w.city.history if d.day < c.repair_day][-2:]
+        # the stronger of the last-day and last-2-days windows: a leak found on its first night has only one
+        # day of loss behind it, and averaging in the clean day before would halve it
+        hist = [d for d in w.city.history if d.day < c.repair_day]
+        windows = [hist[-1:], hist[-2:]]
+        before = max(windows, key=lambda ds: float(b.zone_t(ds).max()))
         t_pre, ex_pre = b.zone_t(before), b.zone_excess(before)
         zi = int(np.argmax(t_pre))
         if t_pre[zi] < config.Z_THR:

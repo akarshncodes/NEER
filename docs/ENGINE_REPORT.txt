@@ -51,3 +51,6 @@ Notes
   In the "partly" rows the ~5 % FIXED verdicts are cases where the second simulated leak sits at a
   low-pressure node and leaks almost nothing (measured remaining excess ~0 L/s) - physically correct.
 - Agent-level (end-to-end) results: docs/EVAL.md. Ablation: docs/ABLATION.md.
+
+- Update (night watch): the Skeptic's 'temporary' rule now also requires a quiet 02:00-04:00 window. Re-measured on 40 cities each:
+  leak 97.5 %, pump trip 97.5 %, fire draw 87.5 % (was 92 %; 2 more fire draws investigated and cleared by listening).

@@ -23,7 +23,7 @@ from neer.app import components as C
 from neer.app import theme
 from dataclasses import replace
 
-from neer.app import board, city3d, dbview, flowchart, geo, opsmap, sandbox, wow
+from neer.app import board, city3d, dbview, flowchart, geo, nightwatch, opsmap, sandbox, wow
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -233,8 +233,21 @@ def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool, blueprint
     st.markdown(city3d.legend_html(), unsafe_allow_html=True)
 
 
-tab_room, tab_board, tab_sandbox, tab_db = st.tabs(["Control Room", "Operations board", "Twin sandbox (what-if)",
-                                                   "Database & API"])
+def open_live_case(nw, case) -> None:
+    """Show a case the night watch opened in the Control Room (same world, same graph)."""
+    W.set_world(nw.world)
+    ss.graph, ss.cfg = case.graph, case.cfg
+    ss.scenario, ss.seed_used, ss.brain, ss.map_view = "live", nw.seed, nw.brain, "zone"
+    ss.pending = pending_interrupt(case.graph, case.cfg)
+    st.toast(f"{case.case_id} is now in the Control Room tab.", icon=":material/open_in_new:")
+    st.rerun()
+
+
+tab_night, tab_room, tab_board, tab_sandbox, tab_db = st.tabs(["Night watch (autonomous)", "Control Room",
+                                                              "Operations board", "Twin sandbox (what-if)", "Database & API"])
+with tab_night:
+    nightwatch.render(ss.get("approver", "Supervisor"), ss.get("role", "supervisor"), int(seed), llm, reveal,
+                      open_live_case)
 with tab_db:
     dbview.render(scen, int(seed))
 with tab_sandbox:
@@ -288,7 +301,7 @@ with tab_room:
             top_areas=[] if done else [n for n in (named(a["area_id"]) for a in v.get("areas", [])) if n],
             current=named(cur_id) if cur_id and not done else None, quiet=[] if done else quiet,
             repaired=named(case.last_dig_area) if case is not None and case.last_dig_area and v.get("verdict") == "FIXED" else None,
-            true_leaks=[e.node for e in SCENARIOS[ss.scenario].events if getattr(e, "kind", "") == "leak"]
+            true_leaks=[e.node for e in (SCENARIOS[ss.scenario].events if ss.scenario in SCENARIOS else []) if getattr(e, "kind", "") == "leak"]
             if reveal and status == "closed" else [],
             case_zone=v.get("zone") if located else None,
             sensor_drop={s: float(d) for s, d in zip(net.sensors, drop)}, masked=list(case.masked) if case else [],

@@ -179,6 +179,18 @@ question, so NEER runs with no keys. At every decision the AI answer is logged n
 - Tabs: **agent timeline**, **evidence ledger** (with baseline version), **tool trace**.
 - Chaos buttons and KPIs, including crew-hours.
 
+## 5a. Autonomous night watch (`neer/live.py`)
+- **Live city:** `World.new("quiet", seed)` plus a hidden schedule by night number (`make_schedule`): leaks of 20, 12, 40 and 15 L/s; a pump trip; planned work; a fire draw; a stuck sensor (fixed 2 nights later); a valve closure; a wrong first repair. NEER is never told.
+- **Every night:** hidden events for that night start → one day of SCADA data → `night_scan` (02:00–04:00 minimum night flow per zone vs normal, t-score, top pressure dips, sensor health, ops log, calendar; 600 readings) → the Sentinel windows (1–3 days, never reaching back past a proven repair).
+- **Outcomes:**
+  - clean night
+  - alarm in a zone with an open case → attached to that case
+  - an alarm seen only in the 2–3-day window that holds yesterday's explained look-alike → watch
+  - otherwise a new case: the agents run with plan approval from the standing **night policy** (listening surveys only)
+  - a dig always stops for a named supervisor or engineer
+- **Skeptic addition:** an event is "temporary" only if the 02:00–04:00 zone t is below 2.5. This stops a fresh leak from being dismissed as a short event. Skeptic accuracy (40 cities each): leak 97.5%, pump trip 97.5%, fire draw 87.5% (2 more fire draws investigated, then cleared by listening).
+- **Auditor:** the pre-repair loss is measured on the stronger of the last-1-day and last-2-day windows, so a leak caught on its first night isn't halved. The evaluation is unchanged at 79/80.
+
 ## 5b. Case database and REST API
 - **`neer/store.py`**, SQLite file `data/neer.db` (WAL; env `NEER_CASE_DB`). Tables: `cases` (one row per case, updated after every step), `timeline`, `ledger`, `approvals` (gate, approved, name, role), `work_orders` (PK case_id + work_order_id). Written by the graph wrapper `_recorded` in `graph.py` and by the field tools (also inside the field-mcp process). A database error is logged and never stops a case. The SQL box uses a read-only connection (`mode=ro`) and accepts one SELECT only.
 - **`neer/api/server.py`** (FastAPI): `GET /api/health`, `/api/scenarios`, `/api/tools`, `POST /api/cases` (runs a case with the given approver and role; the safety validator still applies), `GET /api/cases`, `/api/cases/{id}`, `/api/kpi`, `/api/trace`. Pydantic request models (bad input → 422), 404 for unknown ids, one case at a time (lock), CORS enabled. OpenAPI docs at `/docs`.

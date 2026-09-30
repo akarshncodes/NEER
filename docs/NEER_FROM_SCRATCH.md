@@ -523,3 +523,62 @@ There is no AI in this part: only tested maths. Rule number 1 is that **numbers 
 - Terminal 1: `cd ~/Desktop/HACKSPRINT/NEER && uv sync && uv run uvicorn neer.api.server:app --port 8000`
 - Terminal 2: `uv run streamlit run neer/app/dashboard.py`
 - Restart Streamlit after updating files.
+
+---
+
+## PART 12: Autonomous night watch (the new main mode)
+
+**For the 10-year-old:**
+- Nobody tells NEER where the problem is.
+- Every night, while the city sleeps (2 to 4 in the morning), the Sentinel reads every meter and every pressure sensor.
+- If a zone is drinking water while everyone is asleep, something is leaking. NEER opens a case **by itself**.
+- It sends the listening crew by itself too, because listening harms nobody.
+- In the morning it asks the supervisor: "May we dig here?"
+
+**Why 2–4 AM?** This is the **minimum night flow** method, the classic technique used for DMAs. At night real use is lowest, so leaks stand out most.
+
+**How it works** (`neer/live.py`):
+- **Live city:** a continuous simulation. We hide a schedule of events by night:
+  - leaks: 20 L/s (night 2), 12 L/s (night 8), 40 L/s with a wrong first repair (night 15), 15 L/s (night 21)
+  - a pump trip (night 4)
+  - planned flushing (night 6)
+  - fire-fighting (night 10)
+  - a frozen sensor (night 12, fixed on night 14)
+  - a valve closure (night 18)
+  NEER is never told. Judges can see the schedule only with "reveal".
+- **Each night:**
+  1. the night's hidden events start
+  2. one day of SCADA data arrives
+  3. **night scan:** for each zone, the 02:00–04:00 inflow vs normal (excess L/s and t-score), the biggest pressure drops, sensor health, the ops log and the calendar. That's 600 raw readings.
+  4. the Sentinel's alarm check over 1, 2 and 3 days
+- **What can happen:**
+  - **clean night**
+  - **look-alike explained:** a case is opened and the Skeptic dismisses it, so no crew is sent
+  - **watching:** a small signal, or yesterday's look-alike still in the multi-day window
+  - **case opened by NEER:** the agents investigate; listening surveys are approved by the standing **night policy**; a dig waits in the **inbox**
+  - **added to an open case:** the same zone already has a case, so no duplicate is opened
+- **Safety is unchanged.** Only a named supervisor or engineer can approve a dig. A viewer is refused inside the tool, and the case escalates.
+
+**Result** (24 nights, seed 7, digs approved):
+- **all 4 hidden leaks proven FIXED**, including the wrong repair (NOT FIXED → re-listen → FIXED)
+- no crew sent for any look-alike
+- 14,400 raw readings checked
+
+**Three problems we fixed to make it work:**
+1. Days spent inside a case (the Auditor watches up to 3 days) were "swallowing" nights, so some events were never scanned. The schedule now follows the night counter.
+2. After a repair, the 3-day window still contained the old leak water and opened a phantom case. Windows no longer reach back past a proven repair.
+3. A fresh leak on its first day was sometimes called a "short event". The Skeptic now also checks minimum night flow: a daytime event is gone by 2 AM, a leak is not. The Auditor also measures the pre-repair loss on the stronger of the 1-day and 2-day windows.
+
+**The screen** (tab "Night watch (autonomous)", the first tab):
+- a night-sky intro with the city clock
+- buttons: **Run tonight's 02:00–04:00 scan**, **Fast-forward 7 nights**, **New city**
+- a KPI strip: nights, raw readings, clean nights, cases opened by NEER, look-alikes explained, waiting for approval, repairs proven, water saved
+- a **night calendar** of coloured squares (green clean, amber look-alike, grey watching, red case, purple added); the latest one pulses
+- **"what the Sentinel read":** the zone night-flow chart with the alarm line, pressure drops, sensor health, ops log, calendar
+- **inbox:** each case NEER opened, with **Approve dig / Reject** and **Open in Control Room** (the map, the 3D views, the Auditor)
+- the night log, and (reveal) the hidden schedule
+
+**Glossary additions:**
+- **Minimum night flow (MNF):** the water entering a zone in the quietest night hours; the standard leak indicator for DMAs.
+- **Standing approval / night policy:** permission given in advance for one safe kind of action (listening), never for digging.
+- **Autonomous:** acts on its own within limits a person has set.
