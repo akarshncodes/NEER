@@ -9,3 +9,4 @@ data/*.json
 data/*.pkl
 .pytest_cache/
 .DS_Store
+data/
