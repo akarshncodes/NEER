@@ -209,3 +209,7 @@ def render_tab(seed: int, map_mode: str, run_case) -> None:
         st.plotly_chart(fig, width="stretch", on_select=_on_map_pick, selection_mode="points", key="sb_map",
                         config={"displayModeBar": False})
         st.markdown(opsmap.legend_html(), unsafe_allow_html=True)
+    if res is not None:
+        from neer.app.twin3d import pressure_landscape
+        st.plotly_chart(pressure_landscape(res.junction_change_m, res.event), width="stretch",
+                        config={"displayModeBar": False}, key="sb_3d")

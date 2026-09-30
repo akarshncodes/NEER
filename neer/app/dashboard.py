@@ -21,7 +21,7 @@ from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
 from neer.app import theme
-from neer.app import board, dbview, flowchart, geo, opsmap, sandbox
+from neer.app import board, dbview, flowchart, geo, opsmap, sandbox, wow
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -52,6 +52,9 @@ def run(payload, animate: bool = True) -> None:
     """Advance the agents until they finish or need a human."""
     box = st.empty()
     for node, update in step_events(ss.graph, ss.cfg, payload):
+        note = wow.toast_for(update) if ss.get("speed", 0.35) > 0 else None
+        if note:
+            st.toast(note[0], icon=note[1])
         if animate and update.get("timeline"):
             last = update["timeline"][-1]
             box.info(f"**{last['agent']}**: {last['text'][:160]}")
@@ -136,13 +139,11 @@ with st.sidebar:
     reveal = st.toggle("Reveal true leak (judges only)", value=False)
 
 # ------------------------------------------------------------------ header + KPIs
-st.markdown('<div class="pagehead"><span class="title">NEER Control Room</span><span class="tag">Finds the leak, sends a crew, '
-            'then proves the repair worked. Simulated city: EPA Net3, 5 zones, 20 pressure sensors, 15 zone meters.</span></div>',
-            unsafe_allow_html=True)
 w = current_world()
 v = case_values()
 record_current()
 k = w.kpi if w else {}
+st.markdown(wow.hero(k, len(ss.get("case_log", {}))), unsafe_allow_html=True)
 _ai, _fb, _veto = C.ai_stats(v.get("timeline", []))
 if llm == "rules":
     brain_note.info("**Brain: rules only.** Every decision comes from the deterministic policy. No model is called.")
@@ -204,6 +205,7 @@ with tab_room:
                 f'<span class="badge soft">Visits {v.get("visits", 0)}, re-plans {v.get("replans", 0)}</span>'
                 + (f'<span class="badge good">Verdict {v["verdict"].replace("_", " ")}</span>' if v.get("verdict") else "")
                 + '</div>', unsafe_allow_html=True)
+    st.markdown(wow.mission(v) + wow.outcome(v, k), unsafe_allow_html=True)
 
     left, mid, right = st.columns([1.55, 0.9, 1.0])
 

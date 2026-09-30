@@ -432,3 +432,31 @@ Ports:
 - The live AI evaluation was limited by free-tier quota (13 of 337 decisions were live in the last run).
 - Area scores are relative likelihoods, not probabilities.
 - The map placement on Madurai is illustrative.
+
+---
+
+## 11. The "wow" layer (`neer/app/wow.py`, `neer/app/twin3d.py`)
+All of it is plain HTML + CSS animation and Plotly. There are no extra libraries, and it reads only real case state, so no numbers are made up.
+- **Hero banner:** animated water waves and falling drops, a pulsing green "LIVE" dot, the one-line pitch, and live counters (cases this session, repairs proven, m³/day saved).
+- **Mission stepper:** SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN.
+  - Finished stages fill in blue with a ✓, and the current stage **glows and pulses**.
+  - The connector bar "flows" into the current stage.
+  - REPLAN shows `↺ ×N` re-plans.
+  - The stage is read from the case state (`wow._stage`: last_event, status, plan_approved, areas).
+- **Outcome banner:**
+  - **FIXED:** a green card with a stamped ✓ seal, a shine sweep, and animated count-up numbers (m³ saved per day, ₹ per day at the assumed ₹25/m³). It uses a CSS `@property` animation.
+  - **Escalated:** an amber card.
+  - **No crew sent:** a blue card carrying the Skeptic's reason.
+- **Toasts:** pop-ups at the key moments:
+  - Sentinel alarm
+  - acoustic "leak heard"
+  - safety validator refused a dig
+  - Auditor NOT FIXED / FIXED
+  They come from `wow.toast_for(update)` on every streamed agent update, and are off during "Run all demo scenarios".
+- **3D twin (Twin sandbox tab):** after Simulate, the whole network is drawn as a 3D landscape. Height is the predicted pressure change from the `simulate` tool, so a leak shows as a dip around its junction. Sensors are orange diamonds and the leak is a red marker. **Drag to rotate, scroll to zoom.**
+
+**Where to show them in the demo:**
+1. The hero is visible as soon as the page opens.
+2. Start `leak_20` and watch the stepper glow move and the toasts pop.
+3. Autopilot: the green FIXED banner stamps in and the counters run up.
+4. In the Twin sandbox, press Simulate and rotate the 3D landscape.
