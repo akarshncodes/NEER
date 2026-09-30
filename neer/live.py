@@ -244,6 +244,6 @@ class NightWatch:
         outcomes = [n["outcome"] for n in self.nights]
         return dict(nights=len(self.nights), clean=outcomes.count("clean"), cases=outcomes.count("case"),
                     dismissed=outcomes.count("dismissed"), watch=outcomes.count("watch"),
-                    waiting=sum(1 for c in self.cases.values() if c.pending),
+                    waiting=sum(1 for c in self.cases.values() if pending_interrupt(c.graph, c.cfg)),
                     proven=k.get("repairs_verified", 0), saved_m3=k.get("litres_saved_per_day", 0) / 1000,
                     readings=sum(n["scan"]["readings"] for n in self.nights))

@@ -469,4 +469,4 @@ All of it is plain HTML + CSS animation and Plotly. There are no extra libraries
 3. Run it again. Night 2: **Case opened by NEER** in its zone, waiting for dig approval. Show the chart, then the inbox card.
 4. Set the role to **viewer** → Approve dig: refused, escalated. Set it back to **supervisor** → start a new city or wait for the next case → Approve: the Auditor proves FIXED.
 5. **Fast-forward 7 nights:** the calendar fills with a pump trip explained, look-alikes, and clean nights.
-6. **Open in Control Room** on a case to show the 3D / Blueprint views of it.
+6. **Show on map** on a case to show the 3D / Blueprint views of it.

@@ -174,7 +174,7 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
                 if c2.button("Reject", key=f"nwno_{cid}", width="stretch"):
                     nw.decide(cid, False, approver, role)
                     st.rerun()
-            if c3.button("Open in Control Room", key=f"nwopen_{cid}", width="stretch",
+            if c3.button("Show on map", key=f"nwopen_{cid}", width="stretch",
                          help="Show this case with the map, 3D views, Auditor meter and ledger."):
                 open_in_room(nw, case)
             with st.expander(f"{cid} timeline ({len(v.get('timeline', []))} steps)"):

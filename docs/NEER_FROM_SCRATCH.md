@@ -575,7 +575,7 @@ There is no AI in this part: only tested maths. Rule number 1 is that **numbers 
 - a KPI strip: nights, raw readings, clean nights, cases opened by NEER, look-alikes explained, waiting for approval, repairs proven, water saved
 - a **night calendar** of coloured squares (green clean, amber look-alike, grey watching, red case, purple added); the latest one pulses
 - **"what the Sentinel read":** the zone night-flow chart with the alarm line, pressure drops, sensor health, ops log, calendar
-- **inbox:** each case NEER opened, with **Approve dig / Reject** and **Open in Control Room** (the map, the 3D views, the Auditor)
+- **inbox:** each case NEER opened, with **Approve dig / Reject** and **Show on map** (opens it in the Control Room) (the map, the 3D views, the Auditor)
 - the night log, and (reveal) the hidden schedule
 
 **Glossary additions:**
