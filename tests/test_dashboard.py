@@ -123,3 +123,50 @@ def test_ledger_table_has_chips():
             dict(when="", dimension="Independent audit", finding="FIXED", supports="fixed", reliability="high", source="verify_repair")]
     page = C.ledger_html(rows)
     assert "chip-leak" in page and "chip-veto" in page and "chip-fixed" in page and "Source tool" in page
+
+
+# ------------------------------------------------------------------ twin sandbox (what-if)
+def test_sandbox_helper_returns_pressure_deltas_for_a_leak():
+    from neer.app import sandbox
+    from neer.sim.network import get_network
+    net = get_network()
+    r = sandbox.run_whatif(sandbox.build_event("leak", node="239", lps=20))
+    assert set(r.junction_change_m) == set(net.junctions)                  # a pressure change for every junction
+    assert min(r.junction_change_m.values()) < -0.2                         # a 20 L/s leak visibly lowers pressure
+    assert sum(v < -0.2 for v in r.junction_change_m.values()) >= 20         # most junctions lose pressure
+    assert sum(v < -0.2 for v in r.sensor_change_m.values()) >= 3
+    assert r.zone_inflow_lps["Z5"] == pytest.approx(19.5, abs=1.0)          # and adds the leak flow to its zone
+    assert "20 L/s leak" in r.sentence and "Z5's inflow" in r.sentence
+
+
+def test_sandbox_pump_trip_changes_pressure_but_no_inflow():
+    from neer.app import sandbox
+    r = sandbox.run_whatif(sandbox.build_event("pump_trip"))
+    assert r.active_hours[0] == 8 and min(r.junction_change_m.values()) < -1      # the tanks keep refilling after 13:00
+    assert all(abs(v) < 0.5 for v in r.zone_inflow_lps.values())
+    assert "changes no zone inflow" in r.sentence
+
+
+def test_sandbox_map_overlay_builds_in_both_modes():
+    from neer.app import opsmap, sandbox
+    r = sandbox.run_whatif(sandbox.build_event("leak", node="239", lps=20))
+    layers = opsmap.Layers(whatif_drop={j: -c for j, c in r.junction_change_m.items()}, whatif_at=("node", "239", "leak"))
+    for mode in ("city", "schematic"):
+        fig = opsmap.build_map(mode, layers, "full", selectable=True)
+        assert any(t.name == "junction-select" for t in fig.data)
+        assert any(t.marker is not None and t.marker.showscale and t.marker.colorbar.title.text == "Predicted pressure drop (m)"
+                   for t in fig.data)
+
+
+@pytest.mark.slow
+def test_sandbox_tab_simulates_and_starts_a_case():
+    at = AppTest.from_file(str(config.ROOT / "neer/app/dashboard.py"), default_timeout=180).run()
+    assert not at.exception
+    at.sidebar.slider[0].set_value(0.0).run()
+    [b for b in at.button if b.label == "Simulate"][0].click().run()
+    assert not at.exception
+    assert any("leak at junction" in s.value for s in at.success)
+    [b for b in at.button if b.label == "Run a case on this"][0].click().run()
+    assert not at.exception
+    assert at.session_state["scenario"] == "whatif"
+    assert any("Approve" in b.label for b in at.button)                      # the injected leak opened a real case

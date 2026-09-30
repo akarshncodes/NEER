@@ -17,6 +17,7 @@ from neer.app import geo
 from neer.app.components import ZONE_COLOURS
 from neer.sim.network import Network, get_network
 
+WHATIF_SCALE = [[0, "#f3efff"], [0.5, "#9a78e0"], [1, "#3d1a8c"]]              # violet: predicted pressure drop
 LIKELIHOOD_SCALE = [[0, "#fffaf0"], [0.45, "#f7a541"], [1, "#d11a1a"]]       # white -> orange -> red
 GREY, INK = "#6b6a66", "#0b0b0b"
 BLUE, ORANGE, GREEN, CREW, RED = "#2a78d6", "#eb6834", "#1a8a3c", "#8a3fb0", "#d11a1a"
@@ -54,6 +55,8 @@ class Layers:
     sensor_drop: dict[str, float] = field(default_factory=dict)                     # night pressure drop in metres
     masked: list[str] = field(default_factory=list)
     crew: bool = False
+    whatif_drop: dict[str, float] = field(default_factory=dict)                     # sandbox: predicted drop (m) per junction
+    whatif_at: Optional[tuple[str, str, str]] = None                                # ("node" | "link", id, label)
 
 
 class _Canvas:
@@ -130,14 +133,15 @@ def _zoom_for(lo_ll: np.ndarray, hi_ll: np.ndarray, width_px: int, height_px: in
 
 
 def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "zone", uirevision: str = "neer",
-              height: int = 600, width_px: int = 560) -> go.Figure:
+              height: int = 600, width_px: int = 560, selectable: bool = False) -> go.Figure:
     """Build the operations map. mode: 'city' | 'schematic'. view: 'zone' (zoom to the case zone) | 'full'."""
     L = layers or Layers()
     net = get_network()
     wn = net.wn
     cv = _Canvas(mode == "city", net)
     zn, fade = net.zone_names, L.case_zone is not None
-    alpha = lambda z: 1.0 if not fade or zn[z] == L.case_zone else 0.3           # noqa: E731 - the case zone at full colour
+    base = 0.4 if L.whatif_drop else 1.0                                        # sandbox: dim the base so the overlay stands out
+    alpha = lambda z: (1.0 if not fade or zn[z] == L.case_zone else 0.3) * base   # noqa: E731 - the case zone at full colour
 
     # ---- 1. zone polygons + big labels
     zone_pts = {}
@@ -174,6 +178,12 @@ def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "
     for zi, z in enumerate(zn):
         js = net.zone_junctions(z)
         cv.dots(js, rgba(ZONE_COLOURS[zi], alpha(zi)), 5)
+    whatif_max = max(L.whatif_drop.values(), default=0.0)
+    if L.whatif_drop and whatif_max > 0:
+        wj = list(L.whatif_drop)
+        wv = [min(max(L.whatif_drop[j], 0.0) / whatif_max, 1.0) for j in wj]
+        cv.dots(wj, [pc.sample_colorscale(WHATIF_SCALE, v)[0] for v in wv], [7 + 17 * v for v in wv],
+                hover=[f"Junction {j} · predicted change {-L.whatif_drop[j]:+.2f} m" for j in wj])
     heat_nodes: list[str] = []
     if L.posterior is not None and L.top_areas:
         post = L.posterior / max(float(L.posterior.max()), 1e-12)
@@ -239,6 +249,21 @@ def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "
         cv.dots(ps, "#ffffff", 20)
         cv.dots(ps, RED, 13, label=["TRUE LEAK"] * len(ps), label_pos="bottom center", label_colour=RED, label_size=11)
 
+    if L.whatif_at:
+        kind, ident, label = L.whatif_at
+        if kind == "node":
+            at = cv.pos(ident)
+        else:
+            lk = wn.get_link(ident)
+            at = (cv.pos(lk.start_node_name) + cv.pos(lk.end_node_name)) / 2
+        cv.dots([at], "#ffffff", 30)
+        cv.dots([at], "#0b0b0b", 17, label=[label], label_pos="bottom center", label_colour="#0b0b0b", label_size=11)
+    if selectable:                                        # near-invisible layer on top so a junction can be clicked
+        js = list(net.junctions)
+        pts = np.array([cv.pos(j) for j in js])
+        cv._add(pts[:, 0], pts[:, 1], mode="markers", name="junction-select", marker=dict(size=13, opacity=0.03, color="#000000"),
+                hovertext=[f"Junction {j} · {net.zone_of(j)} (click to select)" for j in js], hoverinfo="text")
+
     # ---- 7. colour bar for the likelihood scale (a zero-size dummy trace carries it)
     if heat_nodes:
         p0 = cv.pos(heat_nodes[0]).reshape(1, 2)
@@ -250,10 +275,24 @@ def build_map(mode: str = "city", layers: Optional[Layers] = None, view: str = "
                                           len=0.42, thickness=10, tickvals=[0, 1], ticktext=["low", "high"],
                                           bgcolor="rgba(255,255,255,0.85)", tickfont=dict(size=10))))
 
+    if L.whatif_drop and whatif_max > 0:
+        p0 = cv.pos(next(iter(L.whatif_drop))).reshape(1, 2)
+        cv._add(p0[:, 0], p0[:, 1], mode="markers", opacity=0,
+                marker=dict(size=1, color=[0.5], cmin=0, cmax=whatif_max, colorscale=WHATIF_SCALE, showscale=True,
+                            colorbar=dict(title=dict(text="Predicted pressure drop (m)", side="top", font=dict(size=11)),
+                                          orientation="h", x=0.52 if heat_nodes else 0.02, y=0.03, xanchor="left",
+                                          yanchor="bottom", len=0.42, thickness=10, bgcolor="rgba(255,255,255,0.85)",
+                                          tickfont=dict(size=10))))
+
     # ---- layout: view, caption, no axes
     zone_xy = zone_pts.get(L.case_zone) if (view == "zone" and L.case_zone) else cv.raw
     lo, hi = _bbox(zone_xy)
     fig = cv.fig
+    if selectable:
+        fig.update_layout(dragmode="select", clickmode="event+select")                  # drag a small box to pick a junction
+        for tr in fig.data:                                                             # selecting must not dim the other dots
+            if tr.marker is not None and tr.mode and "markers" in tr.mode:
+                tr.unselected = dict(marker=dict(opacity=tr.marker.opacity if tr.marker.opacity is not None else 1.0))
     caption = CAPTION if cv.city else "Schematic view (EPA Net3 coordinates)"
     fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), showlegend=False, paper_bgcolor="white",
                       uirevision=uirevision, font=dict(family="Inter, sans-serif", size=12, color="#52514e"),
