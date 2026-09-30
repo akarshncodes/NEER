@@ -70,9 +70,10 @@ def start(scenario: str, seed: int, mode: str, llm: str) -> None:
     ss.seed_used = seed
     ss.scenario = scenario
     ss.brain = llm
-    ss.map_view = "zone"
+    ss.map_view = "full"                                  # whole city first; "Case zone" zooms in
     ss.pending = None
     run(init)
+    st.toast(f"Case started: {scenario}. Follow it in the Control Room tab.", icon=":material/play_arrow:")
 
 
 def answer(ok: bool) -> None:
@@ -128,9 +129,9 @@ with st.sidebar:
                 "Ollama": os.getenv("NEER_USE_OLLAMA") == "1"}
         st.caption("Chain: " + " → ".join(f"{k} ({'key set' if v else 'off'})" for k, v in keys.items()) + " → rules")
     brain_note = st.empty()        # filled after the buttons have run, so its counts are current
-    map_mode = st.radio("Map", ["city", "schematic"], horizontal=True,
+    map_mode = st.radio("Map", ["schematic", "city"], horizontal=True,
                         format_func=lambda x: "City map" if x == "city" else "Schematic",
-                        help="City map: the network on a Madurai street map (needs internet). Schematic: plain drawing.")
+                        help="Schematic: the network drawing (always works). City map: the network on a Madurai street map (needs internet map tiles).")
     mode = st.radio("Tools via", ["direct", "mcp"], horizontal=True,
                     format_func=lambda x: "In-process" if x == "direct" else "4 MCP servers",
                     help="How agents call their 19 tools: direct Python calls, or through 4 MCP servers (falls back to direct).")
@@ -269,8 +270,8 @@ def open_live_case(nw, case) -> None:
     st.rerun()
 
 
-tab_night, tab_room, tab_board, tab_sandbox, tab_data, tab_db = st.tabs(
-    ["Night watch (autonomous)", "Control Room", "Operations board", "Twin sandbox (what-if)", "Dataset", "Database & API"])
+tab_room, tab_night, tab_board, tab_sandbox, tab_data, tab_db = st.tabs(
+    ["Control Room", "Night watch (autonomous)", "Operations board", "Twin sandbox (what-if)", "Dataset", "Database & API"])
 with tab_data:
     datasetview.render(reveal)
 with tab_night:

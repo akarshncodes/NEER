@@ -464,7 +464,7 @@ All of it is plain HTML + CSS animation and Plotly. There are no extra libraries
 ---
 
 ## 12. Night watch (autonomous mode): how to demo it
-1. Open the first tab, **Night watch (autonomous)** → **Start the live city**.
+1. Open the second tab, **Night watch (autonomous)** → **Start the live city**.
 2. Press **Run tonight's scan**. Night 1 is clean; say "600 raw readings checked, all normal".
 3. Run it again. Night 2: **Case opened by NEER** in its zone, waiting for dig approval. Show the chart, then the inbox card.
 4. Set the role to **viewer** → Approve dig: refused, escalated. Set it back to **supervisor** → start a new city or wait for the next case → Approve: the Auditor proves FIXED.

@@ -81,6 +81,7 @@ def test_city_map_falls_back_to_schematic_when_tiles_unreachable(monkeypatch):
     monkeypatch.setattr(geo, "tiles_available", lambda *a, **k: False)
     at = AppTest.from_file(str(config.ROOT / "neer/app/dashboard.py"), default_timeout=180).run()
     at.sidebar.slider[0].set_value(0.0).run()
+    [r for r in at.sidebar.radio if r.label == "Map"][0].set_value("city").run()      # schematic is the default
     [b for b in at.sidebar.button if "Start" in b.label][0].click().run()
     assert not at.exception
     assert any("unreachable" in c.value for c in at.caption)
