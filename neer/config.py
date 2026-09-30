@@ -70,13 +70,16 @@ LONE_WOLF_SECOND = 2.0
 # search / field
 SOFT_ACOUSTIC_NO = 0.15         # area weight after an acoustic "no"
 SOFT_EMPTY_DIG = 0.10           # area weight after a dig found nothing
+SOFT_NOT_FIXED = 0.50           # repaired area when the Auditor says NOT FIXED (maybe the wrong pipe nearby)
 ACOUSTIC_SENSITIVITY = 0.85
 ACOUSTIC_FPR = 0.05
-MAX_REPLANS = 3
-MAX_VISITS = 6
+MAX_REPLANS = 6
+MAX_VISITS = 8
 
 # auditor (sequential probability ratio test)
-SPRT_ODDS = 99.0                # decide at 99:1 evidence
+SPRT_ODDS = 99.0                # decide NOT FIXED / PARTLY at 99:1 evidence
+SPRT_ODDS_FIXED = 999.0         # closing a case needs stronger proof (a wrong FIXED is the costly error)
+SPRT_MIN_HOURS_FIXED = 3        # and at least 3 hours of data
 SPRT_NOISE_INFLATE = 2.0
 SPRT_MAX_HOURS = 72
 PARTIAL_DROP = 0.35             # >35 % drop but still leaking -> PARTLY FIXED

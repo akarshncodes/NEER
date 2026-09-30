@@ -38,6 +38,7 @@ class CaseRecord:
     repair_day: Optional[int] = None
     last_verdict: Optional[AuditVerdict] = None
     masked: list[str] = field(default_factory=list)
+    last_dig_area: Optional[str] = None
 
 
 @dataclass
@@ -100,7 +101,6 @@ class World:
 
 # ------------------------------------------------------------ access
 _world: Optional[World] = None
-SHARED = os.getenv("NEER_WORLD_SHARED") == "1"
 
 
 def set_world(w: World) -> None:
@@ -126,7 +126,7 @@ def load() -> World:
 def session(write: bool = True):
     """Use the world inside a tool.  Shared mode: file-locked load -> use -> save."""
     global _world
-    if not SHARED:
+    if os.getenv("NEER_WORLD_SHARED") != "1":
         if _world is None:
             _world = load() if config.WORLD_FILE.exists() else World.new()
         yield _world

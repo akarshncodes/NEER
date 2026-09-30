@@ -85,6 +85,7 @@ def crew_status(work_order_id: str) -> CrewStatus:
                     w.city.remove_leak(n)
             wo.result = "repaired"
             c.repair_day = w.city.day
+            c.last_dig_area = wo.area_id
         else:
             w.kpi["wasted_digs"] += 1
             c.weights.empty_dig(junctions)

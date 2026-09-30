@@ -38,6 +38,8 @@ def verify_repair(case_id: str) -> AuditVerdict:
             w.kpi["repairs_rejected"] += 1
             if verdict.verdict == AuditKind.partly_fixed:
                 c.pre_excess = max(verdict.post_excess_lps, 1.0)     # hunt what is left
+            elif c.last_dig_area in c.areas:                          # repaired there, still leaking
+                c.weights.downweight(c.areas[c.last_dig_area], config.SOFT_NOT_FIXED)
             c.repair_day = None
         return verdict
 
@@ -65,6 +67,8 @@ def case_memory(op: Literal["read", "write"], key: str, value: Optional[str] = N
             if value is None:
                 raise ValueError("value is required for write")
             w.memory[key] = value[:500]
+            if key.startswith("false_alarm"):
+                w.kpi["false_alarms_avoided"] += 1
         return {"key": key, "value": w.memory.get(key)}
 
 
