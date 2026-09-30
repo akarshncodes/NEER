@@ -13,10 +13,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 CACHE_DIR = DATA_DIR / "cache"
 LIBRARY_CACHE = CACHE_DIR / "fingerprints.npz"
-CASES_DB = DATA_DIR / "cases.db"
-TRACE_DB = DATA_DIR / "trace.db"
-CHAOS_FILE = DATA_DIR / "chaos.json"
-WORLD_FILE = DATA_DIR / "world.pkl"
+# overridable by env so MCP server processes share the exact same files as their client
+CASES_DB = Path(os.getenv("NEER_CASES_DB", DATA_DIR / "cases.db"))
+TRACE_DB = Path(os.getenv("NEER_TRACE_DB", DATA_DIR / "trace.db"))
+CHAOS_FILE = Path(os.getenv("NEER_CHAOS_FILE", DATA_DIR / "chaos.json"))
+WORLD_FILE = Path(os.getenv("NEER_WORLD_FILE", DATA_DIR / "world.pkl"))
 
 # ---------------------------------------------------------------- network
 HOURS = 24                      # one simulated day = 24 hourly values

@@ -98,6 +98,7 @@ class ZoneFlow(BaseModel):
 class ZoneFlowReport(BaseModel):
     day: int
     zones: list[ZoneFlow]
+    detection: Optional["Detection"] = Field(default=None, description="Three-witness summary for the same data")
 
 
 class SensorPressure(BaseModel):
@@ -250,3 +251,6 @@ class CaseStatus(str, Enum):
     closed = "closed"
     escalated = "escalated"
     no_alarm = "no_alarm"
+
+
+ZoneFlowReport.model_rebuild()

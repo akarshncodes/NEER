@@ -37,7 +37,6 @@ class SimCity:
     def __init__(self, seed: int = 0, history_days: int = config.HISTORY_DAYS) -> None:
         self.seed = seed
         self.rng = np.random.default_rng(seed)
-        self.net = get_network()
         # hidden truth that NEER cannot see
         self._bias = {j: self.rng.normal(1, config.DEMAND_BIAS_SD) for j in self.net.junctions}
         self._meter_bias = self.rng.normal(1, config.METER_BIAS_SD, len(self.net.meters))
@@ -49,6 +48,11 @@ class SimCity:
         for _ in range(history_days):
             d = self.advance_day()
             d.certified_clean = True
+
+    @property
+    def net(self):
+        """The fixed network (not stored, so a city pickles small)."""
+        return get_network()
 
     # ------------------------------------------------------------ events
     def add_event(self, e: AnyEvent) -> None:

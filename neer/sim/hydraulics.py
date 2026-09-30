@@ -5,6 +5,9 @@ This is the only place that talks to WNTR/EPANET. Both the "real" city
 """
 from __future__ import annotations
 
+import os
+import tempfile
+import uuid
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
@@ -16,6 +19,9 @@ from wntr.network.controls import Control, ControlAction
 from neer import config
 from neer.schemas import FireDraw, Leak, PlannedWork, PumpTrip, ValveClosure
 from neer.sim.network import emitter_coef, area_for_flow, get_network, load_model
+
+
+_TMP = tempfile.mkdtemp(prefix="neer_epanet_")
 
 
 @dataclass
@@ -77,7 +83,17 @@ def run_day(
             extra += 1
         # StuckSensor / SensorOffset are reading faults, handled in city.py
 
-    res = wntr.sim.EpanetSimulator(wn).run_sim()
+    # unique temp files: EPANET writes .inp/.rpt/.bin, and parallel runs (threads, MCP servers,
+    # tests) must never share a file name
+    prefix = os.path.join(_TMP, uuid.uuid4().hex)
+    try:
+        res = wntr.sim.EpanetSimulator(wn).run_sim(file_prefix=prefix)
+    finally:
+        for ext in (".inp", ".rpt", ".bin", ".hyd"):
+            try:
+                os.remove(prefix + ext)
+            except OSError:
+                pass
     pressure = res.node["pressure"][net.junctions].values[: config.HOURS]
     flows = res.link["flowrate"][net.meters].values[: config.HOURS] * 1000
     bulk = res.node["demand"][net.bulk].values[: config.HOURS] * 1000
