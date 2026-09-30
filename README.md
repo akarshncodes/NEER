@@ -32,7 +32,7 @@ Six LangGraph agents own a leak case from the first signal to a proven repair. T
 cd NEER
 uv sync                                    # installs everything from uv.lock (Python 3.11)
 cp .env.example .env                       # optional: add GROQ_API_KEY / GOOGLE_API_KEY for the LLM chain
-uv run pytest -q                           # 56 tests (~1-2 min; first run builds the leak library ~20 s)
+uv run pytest -q                           # 78 test runs (~2-3 min; first run builds the leak library ~20 s)
 uv run python -m neer.agents.runner --list                     # all scenarios
 uv run python -m neer.agents.runner --scenario leak_20         # a whole case in the terminal
 uv run python -m neer.agents.runner --scenario leak_20 --mode mcp   # same, through the 4 MCP servers
@@ -41,8 +41,14 @@ uv run python -m neer.eval.run_eval --seeds 41,42,43,44,45     # evaluation -> d
 uv run python -m neer.eval.ablation 36                         # ablation study -> docs/ABLATION.md
 uv run python scripts/engine_report.py 40                      # physics-engine benchmark (+ calibration check)
 uv run python scripts/search_bench.py 120                      # larger search benchmark (headline numbers)
+NEER_LLM_MIN_INTERVAL_S=6 uv run python -m neer.eval.llm_eval --seeds 41,42,43,44,45   # rules vs live AI -> docs/LLM_EVAL.md
+uv run python scripts/export_dataset.py leak_20                # the simulated SCADA data as CSVs for Excel
 ```
-NEER runs with **no API keys**: the `rules` brain is the last link of the LLM chain (Groq → Gemini → Ollama → rules). With keys in `.env`, choose "LLM chain" in the dashboard or pass `--llm chain`.
+NEER runs with **no API keys**: the `rules` brain is the last link of the LLM chain (Groq → Gemini → Ollama → rules). With keys in `.env`, choose "LLM chain" in the dashboard or pass `--llm chain`. The AI owns the investigation (which hypothesis, what evidence is missing, where to search next); rules own physics, numbers and safety, and can veto it ([`docs/RULES_VS_AI.md`](docs/RULES_VS_AI.md)). A provider that fails on the network twice in a row is rested for 60 s, so bad Wi-Fi never slows the demo.
+
+**Control Room tabs:** Control Room (operations map on a Madurai basemap with an offline schematic fallback, live agent flowchart, decision cards, evidence ledger, Auditor meter) · Operations board (Kanban of all cases, impact strip, case-report PDF) · Twin sandbox (what-if on the digital twin).
+
+Evaluations (`run_eval`, `llm_eval`, `ablation`) use their own chaos / world / trace files under `data/runs/`, so they can run while the dashboard is open.
 
 Each MCP server can also run on its own, e.g. `uv run python -m neer.mcp_servers.scada_server` (stdio).
 
@@ -55,6 +61,7 @@ Each MCP server can also run on its own, e.g. `uv run python -m neer.mcp_servers
   - Median 3 simulated days to a verified repair.
   - The 1 failure (a second leak not found) was escalated to a human.
   - Full table: [`docs/EVAL.md`](docs/EVAL.md).
+- **Live AI vs rules** ([`docs/LLM_EVAL.md`](docs/LLM_EVAL.md)): both 79/80 with 0 wrong closures and 0 unapproved actions. The last chain run was starved by free-tier quota (13 of 337 decisions live), so it mostly measured the fallback path; re-run it with quota.
 - **Ablation, do the agents matter?** ([`docs/ABLATION.md`](docs/ABLATION.md)). Same cases, five systems:
 
   | System | Crews sent for look-alikes | Leaks really fixed | Tickets closed while still leaking |
@@ -86,9 +93,10 @@ neer/sim/          simulated city: Net3, 5 DMAs, 15 meters, noise, events, scena
 neer/engine/       physics & statistics: versioned baseline, 3 evidence dimensions, Skeptic checks, localisation, next-best-action planner, acoustic, independent Auditor
 neer/tools/        19 tools + resilience layer + safety validator (RBAC) + chaos switches + shared world
 neer/mcp_servers/  scada-mcp, twin-mcp, field-mcp, audit-mcp (FastMCP, stdio)
-neer/agents/       LangGraph graph, 6 agents, LLM router, MCP toolbox, CLI runner
-neer/app/          Streamlit Control Room
-neer/eval/         end-to-end evaluation + ablation study
-tests/             56 tests (sim, engine, tools/MCP/safety, agents, dashboard)
+neer/agents/       LangGraph graph, 6 agents, LLM router (+ decision log, provider rest), MCP toolbox, CLI runner
+neer/app/          Streamlit Control Room: ops map, flowchart, decision cards, ops board, case report, twin sandbox
+neer/eval/         end-to-end evaluation, rules-vs-AI evaluation, ablation study
+scripts/           engine_report, search_bench, export_dataset
+tests/             78 test runs (sim, engine, tools/MCP/safety, agents, AI split, dashboard)
 reference/         research code from earlier (algorithm reference only)
 ```

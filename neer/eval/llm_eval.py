@@ -139,6 +139,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", default="41,42,43")
     a = ap.parse_args()
+    config.use_private_runtime("llm_eval")          # never share chaos/trace files with a running dashboard
     seeds = [int(x) for x in a.seeds.split(",")]
     chain_env = os.environ.get("NEER_LLM_CHAIN", config.LLM_CHAIN)
     rules_rows = run_all("rules", seeds)

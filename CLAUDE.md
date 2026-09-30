@@ -1,7 +1,7 @@
 # CLAUDE.md: NEER (HackSprint'26, problem SC-02)
 
 NEER is an evidence-driven agentic system for closed-loop water leak investigation and repair verification (SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN). It was built during a 24-hour hackathon (30 Sep 2026 9:00 AM – 1 Oct 7:30 AM IST) that is judged on agentic AI.
-**Status: stages 0–7 are built and tested (stage 7 = V2-guide upgrades).** Read `README.md` first, then the part of `docs/SPEC.md` you need.
+**Status: stages 0–9 are built and tested (7 = V2-guide upgrades, 8 = AI owns the investigation, 9 = professional Control Room).** Read `README.md` first, then the part of `docs/SPEC.md` you need.
 
 ## Judging
 | Criterion | Weight |
@@ -18,12 +18,12 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
 1. **Physics and maths live in tested code** (`neer/engine`). The LLM only plans, critiques, chooses from an allowed set, and explains. It never produces a number that a tool did not return.
 2. **Contracts are in `neer/schemas.py`.** If you change one, update `docs/SPEC.md`.
 3. **Tests must stay green.**
-   - Run `uv run pytest -q` (56 tests; use `-m "not slow"` for a quick check).
+   - Run `uv run pytest -q` (78 test runs; use `-m "not slow"` for a quick check).
    - Then commit as `stage/feature: summary`.
 4. **Deterministic:** every random process takes a seed. Demo scenarios must replay identically (`neer/sim/scenarios.py`).
 5. **Never block on the network.** The LLM chain ends in `rules`; the MCP transport falls back to direct calls.
 6. **Safety gates live inside the tools as well as the graph.** `neer/tools/safety.py` requires an acoustic "yes", a named approver with role supervisor/engineer, and one open dig per case. SCADA is read-only. The contractor is released only on FIXED.
-7. **Honesty:** only quote numbers produced by `neer/eval/run_eval.py`, `neer/eval/ablation.py`, `scripts/engine_report.py` or `scripts/search_bench.py`. Area scores are relative likelihoods, not calibrated probabilities. Do not claim "first agentic water system", that all NRW is leakage, or live SCADA.
+7. **Honesty:** only quote numbers produced by `neer/eval/run_eval.py`, `neer/eval/llm_eval.py`, `neer/eval/ablation.py`, `scripts/engine_report.py` or `scripts/search_bench.py`. Area scores are relative likelihoods, not calibrated probabilities. Do not claim "first agentic water system", that all NRW is leakage, or live SCADA.
 8. Small files, plain-English docstrings, type hints.
 9. **The Auditor stays independent:** it measures the pre-repair loss itself and never reads the crew's report or the Detective's result.
 10. **Baseline memory is protected:** only Auditor-certified days, at least 2 before an update, and each update is versioned.
@@ -45,7 +45,8 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
   - graph.py
   - runner.py (CLI)
 - `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS) · opsmap.py (city map on OpenStreetMap / schematic) · flowchart.py (live agent graph) · sandbox.py (twin what-if tab) · board.py (Kanban + impact strip) · report.py (case PDF) · geo.py (`to_latlon`, hulls, tile check) · theme.py (design tokens, light + dark, stylesheet) · static/ (self-hosted Geist fonts); theme also in `.streamlit/config.toml`
-- `neer/eval/run_eval.py`: writes docs/EVAL.md · `neer/eval/ablation.py`: writes docs/ABLATION.md
+- `neer/eval/run_eval.py`: writes docs/EVAL.md · `neer/eval/llm_eval.py`: docs/LLM_EVAL.md · `neer/eval/ablation.py`: docs/ABLATION.md. Each calls `config.use_private_runtime()` first, so it never shares chaos/world/trace files with a running dashboard.
+- `neer/agents/llm.py`: a provider with `LLM_DOWN_AFTER` network failures in a row rests for `LLM_COOLDOWN_S`; wrong answers never rest a provider.
 
 ## Commands
 ```

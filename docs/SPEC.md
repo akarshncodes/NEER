@@ -167,8 +167,11 @@ question, so NEER runs with no keys. At every decision the AI answer is logged n
 - **LLM chain:** Groq → Gemini → Ollama → `rules`.
   - Answers must be structured and inside the allowed set.
   - An invalid or malformed answer falls through to the next provider.
+  - **Provider rest:** 2 network failures in a row (timeout, connection, HTTP 429, auth) rest that provider for 60 s (`LLM_DOWN_AFTER`, `LLM_COOLDOWN_S`). Without it, offline Wi-Fi could cost 4 × 20 s per decision. A wrong answer never rests a provider.
 
 ## 5. Dashboard (`neer/app/`)
+- Three tabs: Control Room, Operations board (Kanban, impact strip, case-report PDF), Twin sandbox (what-if).
+- Operations map on a Madurai OpenStreetMap basemap (illustrative placement), falling back to a schematic when tiles cannot load; live agent flowchart and decision cards.
 - Map with relative-likelihood heat and search areas.
 - Chart of the zone's "water nobody paid for".
 - Evidence card and Auditor meter.
@@ -189,6 +192,8 @@ question, so NEER runs with no keys. At every decision the AI answer is logged n
   - leak model + Skeptic
   - leak model + Orchestrator
   - full NEER
+- **`llm_eval.py`:** the same scenarios with `rules` and with the live chain → `docs/LLM_EVAL.md` (agreement with `rules()`, fallbacks, vetoes).
+- **Isolation:** every evaluation calls `config.use_private_runtime()` and uses `data/runs/<name>/` for chaos, world and trace, so it cannot leak chaos toggles into (or count tool calls from) a running dashboard.
 - **`scripts/engine_report.py`:** engine accuracy, including a calibration check → `docs/ENGINE_REPORT.txt`.
 - **`scripts/search_bench.py`:** the larger search run (120 leaks per size) that the pitch quotes, because 40-case rows swing by about ±7%.
 

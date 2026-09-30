@@ -40,6 +40,7 @@ def main() -> None:
     ap.add_argument("--llm", choices=["rules", "chain"], default="rules")
     ap.add_argument("--mode", choices=["direct", "mcp"], default="direct")
     a = ap.parse_args()
+    config.use_private_runtime("eval")          # never share chaos/trace files with a running dashboard
     seeds = [int(x) for x in a.seeds.split(",")]
 
     rows, total, ok = [], 0, 0

@@ -34,6 +34,19 @@ TRACE_DB = Path(os.getenv("NEER_TRACE_DB", DATA_DIR / "trace.db"))
 CHAOS_FILE = Path(os.getenv("NEER_CHAOS_FILE", DATA_DIR / "chaos.json"))
 WORLD_FILE = Path(os.getenv("NEER_WORLD_FILE", DATA_DIR / "world.pkl"))
 
+
+def use_private_runtime(name: str) -> None:
+    """Give a batch job (evaluation, ablation) its own chaos / world / trace files under data/runs/<name>/.
+
+    Without this, an evaluation running while the dashboard is open would share data/chaos.json and
+    data/trace.db with it: the eval's chaos toggles would fire in the demo, and the demo's tool calls
+    would be counted in the eval. Call it at the start of main(), before any tool runs.
+    """
+    global TRACE_DB, CHAOS_FILE, WORLD_FILE
+    run_dir = DATA_DIR / "runs" / name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    TRACE_DB, CHAOS_FILE, WORLD_FILE = run_dir / "trace.db", run_dir / "chaos.json", run_dir / "world.pkl"
+
 # ---------------------------------------------------------------- network
 HOURS = 24                      # one simulated day = 24 hourly values
 N_ZONES = 5                     # District Metered Areas (DMAs)
@@ -126,6 +139,8 @@ LLM_CHAIN = os.getenv(
     "groq:openai/gpt-oss-120b,gemini:gemini-3.5-flash,ollama:qwen2.5:7b,rules",
 )
 LLM_TIMEOUT_S = 20
+LLM_DOWN_AFTER = 2              # consecutive network failures (timeout, connection, 429, auth) before a provider rests
+LLM_COOLDOWN_S = 60             # ...and it is skipped for this long, so bad Wi-Fi never makes a demo crawl
 TOOL_MODE = os.getenv("NEER_TOOL_MODE", "direct")   # "direct" or "mcp"
 TOOL_TIMEOUT_S = 10
 TOOL_RETRIES = 2

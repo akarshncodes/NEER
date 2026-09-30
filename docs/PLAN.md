@@ -10,6 +10,9 @@
 | 5 · Dashboard | Streamlit Control Room: map, water bill, evidence card, Auditor meter, approvals, timeline, trace, chaos | ✅ | test_dashboard.py (1) |
 | 6 · Evaluation | 16 scenarios × 5 fresh seeds → docs/EVAL.md; ablation (5 systems) → docs/ABLATION.md; engine benchmark + calibration → docs/ENGINE_REPORT.txt; README; uv.lock | ✅ | – |
 | 7 · V2 upgrades | evidence ledger, next-best-action value, inconclusive field results, independent Auditor, protected versioned baseline, safety validator with roles, honest claims, new metrics | ✅ | +5 tests (56 total) |
+| 8 · AI owns the investigation | live LLM chain, hypothesis judge, AI target choice, rule veto, decision log, LLM_EVAL.md, RULES_VS_AI.md | ✅ | test_ai_split.py |
+| 9 · Professional Control Room | operations map, agent flowchart, decision cards, ops board, case report PDF, twin sandbox, theme | ✅ | test_dashboard.py (16) |
+| 9b · Review fixes | evaluations use private runtime files; resting an unreachable LLM provider | ✅ | 78 test runs |
 
 ## What each review should show
 - **10 PM (progress):**
@@ -35,6 +38,10 @@
 11. **We called area scores "probabilities".** They are relative likelihoods, and a calibration check now shows the gap.
 12. **We tested cost-aware planning.** It saved about 20% of crew-hours but added about 0.4 nights per leak, so the default finds the leak soonest (information gain breaks ties), and "cheap" mode is a switch.
 13. **Our 40-case search numbers were lucky.** "Found within 3 visits" read 78–82% on one sample. A 120-leak re-run gives 58–75% (86–94% within 8 visits), and that is the number we now quote.
+14. **The AI dismissed real leaks.** Groq said "dismiss" on real leaks; the rule veto overrode it and the Skeptic prompt now defines each decision.
+15. **Free-tier quotas.** Groq and Gemini limits caused HTTP 429s. The chain falls back cleanly, `NEER_LLM_MIN_INTERVAL_S` spaces calls, and a provider that fails twice on the network now rests for 60 s instead of costing up to 80 s per decision.
+16. **The jury called the map very bad.** It was rebuilt as an operations map on a Madurai basemap with an offline schematic fallback.
+17. **An evaluation run while the dashboard was open shared its chaos and trace files.** Its chaos toggles could fire in the live demo and the demo's tool calls were counted in the eval. Evaluations now use private files under `data/runs/`.
 
 ## Team roles
 | Member | Owns | Explains |

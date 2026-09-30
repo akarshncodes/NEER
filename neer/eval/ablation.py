@@ -142,6 +142,7 @@ def run_system(system: str, city: SimCity, b: Baseline, days: list, misfix: bool
 
 def main() -> None:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 24
+    config.use_private_runtime("ablation")          # never share chaos/trace files with a running dashboard
     net = get_network()
     systems = ["A", "B", "C", "D", "E"]
     names = {"A": "Threshold alarm → dig at biggest pressure drop", "B": "Leak model only (dig most likely area)",

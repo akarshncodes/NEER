@@ -20,4 +20,6 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(toolbox, "_mcp", None)
     from neer.tools import world
     monkeypatch.setattr(world, "_world", None)
+    from neer.agents import llm
+    llm.reset_provider_health()
     yield

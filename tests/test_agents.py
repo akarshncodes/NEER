@@ -127,3 +127,24 @@ def test_invalid_llm_choice_falls_through_to_rules(monkeypatch):
     assert sum("not in allowed set" in f for f in d.fallbacks) == 4
     rec = llm.DECISION_LOG[-1]
     assert rec.guard_rejections == 4 and rec.rules_choice == "acoustic_check"
+
+
+def test_unreachable_provider_rests_instead_of_slowing_every_decision(monkeypatch):
+    """Bad Wi-Fi: after LLM_DOWN_AFTER network failures a provider is skipped for a while, so decisions stay fast.
+    A wrong *answer* (not in the allowed set) never rests a provider - only connection / quota / auth errors do."""
+    calls = []
+
+    class Offline:
+        def invoke(self, _messages):
+            calls.append("groq")
+            raise ConnectionError("Connection error.")
+
+    monkeypatch.setenv("NEER_LLM_CHAIN", "groq:fake,rules")
+    monkeypatch.setenv("GROQ_API_KEY", "x")
+    monkeypatch.setattr(llm, "_model", lambda provider, model, schema=None: Offline())
+    for _ in range(3):
+        d = llm.decide("Orchestrator", "sys", "situation", ["acoustic_check", "escalate"],
+                       lambda: ("acoustic_check", "rules pick"))
+        assert d.provider == "rules" and d.choice == "acoustic_check"
+    assert calls == ["groq", "groq"]                      # tried twice, then rested for the next two decisions
+    assert "skipped" in d.fallbacks[0]

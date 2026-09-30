@@ -116,6 +116,35 @@ def _available(provider: str) -> bool:
 
 _models: dict[str, object] = {}
 _last_call: dict[str, float] = {}
+_net_fails: dict[str, int] = {}          # consecutive network-type failures per provider
+_down_until: dict[str, float] = {}       # provider -> time until which it is skipped
+
+_NETWORK_SIGNS = ("connection", "timed out", "timeout", "429", "rate limit", "quota", "resource_exhausted",
+                  "401", "403", "unauthorized", "invalid api key", "name resolution", "unreachable")
+
+
+def _is_network_failure(msg: str) -> bool:
+    """Transport / quota / auth problems - not a bad answer. Only these can rest a provider."""
+    m = msg.lower()
+    return any(k in m for k in _NETWORK_SIGNS)
+
+
+def _resting(provider: str) -> bool:
+    return time.time() < _down_until.get(provider, 0.0)
+
+
+def _note_failure(provider: str, msg: str) -> None:
+    if not _is_network_failure(msg):
+        return
+    _net_fails[provider] = _net_fails.get(provider, 0) + 1
+    if _net_fails[provider] >= config.LLM_DOWN_AFTER:
+        _down_until[provider] = time.time() + config.LLM_COOLDOWN_S
+        _net_fails[provider] = 0
+
+
+def reset_provider_health() -> None:
+    _net_fails.clear()
+    _down_until.clear()
 
 
 def _pace(provider: str) -> None:
@@ -169,13 +198,19 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
             break
         if not _available(provider):
             continue
+        if _resting(provider):
+            fails.append(f"{provider}: skipped (network failures, resting {config.LLM_COOLDOWN_S}s)")
+            continue
         for attempt in range(2):
+            if _resting(provider):
+                break
             try:
                 if chaos.consume("llm_bad_json"):
                     raise ValueError("malformed JSON from model (chaos)")
                 _pace(provider)
                 fut = _pool.submit(_model(provider, model, schema).invoke, [("system", system), ("user", prompt)])
                 d: Decision = fut.result(timeout=config.LLM_TIMEOUT_S)
+                _net_fails[provider] = 0
                 picked = getattr(d, choice_field, None)
                 if d is None or picked not in allowed:
                     rejected += 1
@@ -195,8 +230,10 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
                                       extra, list(getattr(d, "cites", []) or []), rejected)
             except (FutTimeout, TimeoutError):
                 fails.append(f"{provider} timeout")
+                _note_failure(provider, "timeout")
             except Exception as e:  # noqa: BLE001 - any model failure means: try the next one
                 fails.append(f"{provider}: {str(e)[:80]}")
+                _note_failure(provider, f"{type(e).__name__} {e}")
             _trace(agent, f"llm:{provider}", {"attempt": attempt + 1}, False, fails[-1], (time.time() - t0) * 1000)
 
     # deterministic fallback - always works. Chaos can still "break" it once to show the recovery.
