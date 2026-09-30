@@ -21,6 +21,8 @@ dependencies = [
   "langchain-ollama>=1.0",
   "streamlit>=1.40",
   "plotly>=6.0",
+  "fpdf2>=2.8.9",
+  "matplotlib>=3.11.2",
 ]
 
 [dependency-groups]

@@ -170,3 +170,70 @@ def test_sandbox_tab_simulates_and_starts_a_case():
     assert not at.exception
     assert at.session_state["scenario"] == "whatif"
     assert any("Approve" in b.label for b in at.button)                      # the injected leak opened a real case
+
+
+# ------------------------------------------------------------------ operations board + case report
+def _record(case_id="CASE-T1", verdict="FIXED", status="closed", llr=(-3.0, -5.0, -7.5), litres=1_728_000.0, quiet=2):
+    from neer.app import board
+    values = dict(case_id=case_id, scenario="leak_20", status=status, zone="Z5", leak_size_lps=20.0, visits=3, replans=2,
+                  verdict=verdict, verdict_reason="Zone inflow back to normal: proven in 3 h.", contractor="released",
+                  llr_trace=list(llr), last_event="start",
+                  area_history=[dict(area="A-1", action="acoustic", result="no")] * quiet + [dict(area="A-2", action="dig", result="repaired")],
+                  timeline=[dict(agent="Sentinel", text="Alarm ≈ +19.8 L/s → zone Z5 ✓", kind="alert", provider=None, numbers={}),
+                            dict(agent="Orchestrator", text="Plan: acoustic_check in A-1.", kind="decision",
+                                 provider="groq:openai/gpt-oss-120b (after: x)", numbers={})],
+                  ledger=[dict(when="Day 8", dimension="Mass balance", finding="+19.8 L/s", supports="leak",
+                               reliability="high", source="get_zone_flow")])
+    return board.make_record(values, dict(litres_saved_per_day=litres, crew_hours=9.7, false_alarms_avoided=1), False, (), 7)
+
+
+def test_board_columns_and_impact_strip():
+    from neer import config
+    from neer.app import board
+    assert board.column_of("closed", False) == "Closed" and board.column_of("watch", False) == "Watch"
+    assert board.column_of("open", True, ("approve_plan",)) == "Waiting for approval"
+    assert board.column_of("escalated", False) == "Waiting for approval"
+    assert board.column_of("open", False, ("field_commander",)) == "Field work"
+    assert board.column_of("open", False, ("auditor",)) == "Verifying"
+    assert board.column_of("open", False, ("detective",)) == "Investigating"
+    recs = [_record("CASE-A"), _record("CASE-B", litres=864_000.0, quiet=1)]
+    imp = board.impact(recs)
+    assert imp["water_m3_per_day"] == pytest.approx(2592.0) and imp["crew_hours"] == pytest.approx(19.4)
+    assert imp["wasted_digs_avoided"] == 3 and imp["false_alarms_avoided"] == 2
+    assert imp["inr_per_day"] == pytest.approx(2592.0 * config.COST_PER_M3_INR)
+    blocks = board.board_html(recs, active_id="CASE-A")
+    assert len(blocks) == 6 and "CASE-A" in blocks[-1] and "FIXED" in blocks[-1] and "kactive" in blocks[-1]
+
+
+def test_case_report_builds_a_non_empty_pdf_with_a_page_per_case():
+    import re
+    from neer.app import report
+    recs = [_record("CASE-A"), _record("CASE-B", verdict=None, status="watch", llr=())]
+    pdf = report.build_report(recs)
+    assert pdf[:5] == b"%PDF-" and len(pdf) > 5_000
+    assert len(re.findall(rb"/Type /Page\b(?!s)", pdf)) == 2                      # short cases: exactly one page each
+    assert report.auditor_chart([-3.0, -6.0, -8.0])[:8] == b"\x89PNG\r\n\x1a\n"
+    assert report.LABEL == "Simulated city: not field data"
+    with pytest.raises(ValueError):
+        report.build_report([])
+
+
+@pytest.mark.slow
+def test_report_from_a_real_case_and_board_run_all():
+    from neer.agents.runner import run_case
+    from neer.app import board, report
+    from neer.tools import world as W
+    s = run_case("leak_20", 7)
+    rec = board.make_record(s.model_dump(), W._world.kpi, False, (), 7)
+    assert rec["column"] == "Closed" and rec["verdict"] == "FIXED" and rec["kpi"]["litres_saved_per_day"] > 0
+    assert rec["quiet_surveys"] >= 0 and len(report.build_report([rec])) > 5_000
+
+    at = AppTest.from_file(str(config.ROOT / "neer/app/dashboard.py"), default_timeout=300).run()
+    at.sidebar.slider[0].set_value(0.0).run()
+    [b for b in at.button if b.label == "Run all demo scenarios"][0].click().run()
+    assert not at.exception
+    cols = [m.value for m in at.markdown if 'class="kcol"' in m.value]
+    assert len(cols) == 6
+    by_name = {name: block for name, block in zip(board.COLUMNS, cols)}
+    assert by_name["Watch"].count("kcard") == 1 and by_name["Closed"].count("kcard") >= 2
+    assert all(any(f"{sc}" in c for c in cols) for sc in board.DEMO_SCENARIOS)

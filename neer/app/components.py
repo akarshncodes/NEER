@@ -258,6 +258,19 @@ table.ledger td.rel{color:#52514e;font-size:.72rem}
 .chip-neutral{background:#efeee9;color:#3d3c39;border-color:#a9a8a1}
 .chip-fixed{background:#1a8a3c;color:#fff;border-color:#1a8a3c}
 .chip-veto{background:#fff;color:#9b1f1f;border-color:#c73636;border-style:dashed}
+.kcol{background:#f6f5f1;border-radius:10px;padding:8px;min-height:120px}
+.khead{font-weight:700;font-size:.8rem;color:#2d2c2a;margin-bottom:6px;display:flex;justify-content:space-between}
+.kcount{background:#e3e2dc;border-radius:10px;padding:0 8px;font-size:.72rem}
+.kcard{background:#fff;border:1px solid #e3e2dc;border-radius:8px;padding:6px 8px;margin-bottom:6px}
+.kcard.kactive{border:2px solid #1d5aa6}
+.kid{font-weight:700;font-size:.78rem;display:flex;justify-content:space-between;gap:4px;align-items:center}
+.kmeta{font-size:.72rem;color:#52514e;line-height:1.35}
+.kempty{font-size:.72rem;color:#a9a8a1;text-align:center;padding:10px 0}
+.vchip{border-radius:9px;padding:0 7px;font-size:.66rem;font-weight:700;border:1px solid;white-space:nowrap}
+.vc-fixed{background:#eaf6ee;color:#14692d;border-color:#1a8a3c}
+.vc-bad{background:#fbe9e9;color:#9b1f1f;border-color:#c73636}
+.vc-none{background:#efeee9;color:#3d3c39;border-color:#a9a8a1}
+.vc-open{background:#e8f0fb;color:#14468a;border-color:#1d5aa6}
 .badge{display:inline-block;border-radius:12px;padding:2px 10px;font-weight:700;font-size:.8rem;margin-right:6px}
 .approve{border:2px solid #b87800;background:#fbf5e8;border-radius:10px;padding:10px 12px;margin-bottom:8px}
 </style>

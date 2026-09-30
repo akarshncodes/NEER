@@ -117,6 +117,9 @@ BASELINE_MAX_DAYS = 14          # rolling window, so seasonal / policy changes a
 # safety: who may approve physical actions (role-based access control)
 APPROVER_ROLES = ("supervisor", "engineer")
 
+# ---------------------------------------------------------------- impact (ASSUMPTION, not measured)
+COST_PER_M3_INR = 25            # assumed value of one cubic metre of treated water, in rupees. Shown as "at ₹25/m³ (assumption)".
+
 # ---------------------------------------------------------------- LLM / tools
 LLM_CHAIN = os.getenv(
     "NEER_LLM_CHAIN",

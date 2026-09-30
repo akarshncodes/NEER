@@ -20,7 +20,7 @@ from langgraph.types import Command
 from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
-from neer.app import flowchart, geo, opsmap, sandbox
+from neer.app import board, flowchart, geo, opsmap, sandbox
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -60,6 +60,7 @@ def run(payload, animate: bool = True) -> None:
 
 def start(scenario: str, seed: int, mode: str, llm: str) -> None:
     ss.graph, ss.cfg, init = start_case(scenario, seed, mode, llm)
+    ss.seed_used = seed
     ss.scenario = scenario
     ss.brain = llm
     ss.map_view = "zone"
@@ -74,6 +75,16 @@ def answer(ok: bool) -> None:
 def autopilot() -> None:
     while ss.get("pending"):
         answer(True)
+
+
+def record_current() -> None:
+    """Keep a snapshot of the active case for the operations board and the report (each case has its own world)."""
+    if "graph" not in ss or not case_values().get("case_id"):
+        return
+    snap = ss.graph.get_state(ss.cfg)
+    world = current_world()
+    ss.setdefault("case_log", {})[snap.values["case_id"]] = board.make_record(
+        snap.values, world.kpi if world else {}, bool(ss.get("pending")), snap.next, ss.get("seed_used"))
 
 
 # ------------------------------------------------------------------ sidebar
@@ -125,6 +136,7 @@ st.caption("SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN �
            "Simulated city: EPA Net3, 5 zones, 20 pressure sensors, 15 zone meters.")
 w = current_world()
 v = case_values()
+record_current()
 k = w.kpi if w else {}
 _ai, _fb, _veto = C.ai_stats(v.get("timeline", []))
 if llm == "rules":
@@ -154,9 +166,25 @@ def run_whatif_case(name: str) -> None:
     st.rerun()                                                                       # the Control Room tab reads fresh state
 
 
-tab_room, tab_sandbox = st.tabs(["Control Room", "Twin sandbox (what-if)"])
+def run_demo_suite() -> None:
+    """Run the four demo scenarios on autopilot, one after another, recording each on the board."""
+    bar = st.progress(0.0, text="Starting the demo scenarios")
+    speed, ss.speed = ss.get("speed", 0.35), 0.0
+    for i, name in enumerate(board.DEMO_SCENARIOS):
+        bar.progress(i / len(board.DEMO_SCENARIOS), text=f"Running {name} ({i + 1}/{len(board.DEMO_SCENARIOS)})")
+        start(name, int(seed), mode, llm)
+        autopilot()
+        record_current()
+    ss.speed = speed
+    bar.empty()
+    st.rerun()                                                                       # the other tabs read fresh state
+
+
+tab_room, tab_board, tab_sandbox = st.tabs(["Control Room", "Operations board", "Twin sandbox (what-if)"])
 with tab_sandbox:
     sandbox.render_tab(int(seed), eff_mode, run_whatif_case)
+with tab_board:
+    board.render_tab(run_demo_suite, v.get("case_id"))
 
 with tab_room:
     if not w or not v:
