@@ -27,3 +27,15 @@ def test_night_watch_never_digs_without_a_valid_approver():
     _run(nw, 3, role="viewer")
     assert nw.world.kpi["digs"] == 0
     assert any(c.state().get("status") == "escalated" for c in nw.cases.values())
+
+
+def test_in_process_runs_never_reuse_the_mcp_world_file():
+    import os
+    from neer.agents.runner import start_case
+    start_case("quiet", 7, mode="mcp")
+    assert os.environ.get("NEER_WORLD_SHARED") == "1"
+    start_case("quiet", 7, mode="direct")
+    assert "NEER_WORLD_SHARED" not in os.environ
+    os.environ["NEER_WORLD_SHARED"] = "1"
+    NightWatch.start(7).run_night()                                # the live city switches back to in-memory
+    assert "NEER_WORLD_SHARED" not in os.environ

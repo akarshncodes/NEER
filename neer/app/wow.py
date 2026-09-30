@@ -187,3 +187,41 @@ def toast_for(update: dict) -> tuple[str, str] | None:
         if agent == "Auditor" and t.startswith(("NOT FIXED", "PARTLY")):
             return "Auditor: repair did NOT hold - re-planning", ":material/replay:"
     return None
+
+
+# ------------------------------------------------------------------ team chat view of the timeline
+AVATAR = {"Sentinel": ("#0e7490", "SE"), "Skeptic": ("#dc2626", "SK"), "Detective": ("#2563eb", "DE"),
+          "Orchestrator": ("#1e3a8a", "OR"), "Field Commander": ("#7c3aed", "FC"), "Auditor": ("#15803d", "AU"),
+          "Supervisor": ("#b45309", "YOU")}
+CHAT_CSS = """<style>
+.chat{display:flex;flex-direction:column;gap:9px;max-height:620px;overflow-y:auto;padding:4px 4px 10px}
+.msg{display:flex;gap:8px;align-items:flex-end;animation:pop .35s ease-out both}
+@keyframes pop{from{transform:translateY(6px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+.msg .av{width:30px;height:30px;border-radius:50%;color:#fff;font-size:.62rem;font-weight:800;display:flex;
+  align-items:center;justify-content:center;flex:none}
+.msg .b{border-radius:14px 14px 14px 4px;padding:7px 11px;background:var(--surface2);border:1px solid var(--line);
+  font-size:.8rem;line-height:1.35;max-width:88%}
+.msg .who{font-size:.66rem;font-weight:800;letter-spacing:.03em;margin-bottom:2px}
+.msg.human{flex-direction:row-reverse}
+.msg.human .b{border-radius:14px 14px 4px 14px;background:#fef3c7;border-color:#fcd34d;color:#1f2937}
+.msg.alert .b{border-color:#fca5a5;background:#fff1f2;color:#1f2937}
+.msg.verdict .b{border-color:#86efac;background:#f0fdf4;color:#1f2937}
+.msg .tag{display:inline-block;margin-left:6px;font-size:.6rem;font-weight:700;color:var(--muted);font-family:var(--mono)}
+</style>"""
+
+
+def chat_html(timeline: list[dict]) -> str:
+    """The agents' timeline as a team chat: each agent has an avatar; humans speak on the right."""
+    import html as _h
+    rows = []
+    for e in timeline:
+        agent = e.get("agent", "")
+        colour, ini = AVATAR.get(agent, ("#64748b", agent[:2].upper()))
+        kind = e.get("kind", "info")
+        cls = "human" if kind == "human" else ("alert" if kind == "alert" else ("verdict" if kind == "verdict" else ""))
+        prov = e.get("provider")
+        tag = f'<span class="tag">{_h.escape(str(prov).split(" ")[0])}</span>' if prov else ""
+        rows.append(f'<div class="msg {cls}"><div class="av" style="background:{colour}">{ini}</div>'
+                    f'<div class="b"><div class="who" style="color:{colour}">{_h.escape(agent)}{tag}</div>'
+                    f'{_h.escape(e.get("text", ""))}</div></div>')
+    return CHAT_CSS + '<div class="chat">' + "".join(rows) + "</div>"

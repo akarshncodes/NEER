@@ -11,6 +11,7 @@ import streamlit as st
 from neer import config
 from neer.agents.runner import pending_interrupt
 from neer.app import components as C
+from neer.app import wow
 from neer.live import NightWatch
 
 OUT = {"clean": ("#16a34a", "Clean night"), "dismissed": ("#d97706", "Look-alike explained, no crew"),
@@ -39,6 +40,25 @@ CSS = """<style>
 .nw-card .h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:700}
 .nw-card .s{font-size:.8rem;color:var(--muted);margin-top:3px}
 .nw-pill{border-radius:999px;padding:1px 9px;font-size:.68rem;font-weight:700;color:#fff}
+.nw-brief{border-radius:12px;padding:14px 18px;margin:.2rem 0 .9rem;border:1px solid var(--line);background:var(--surface);
+  display:flex;gap:16px;align-items:flex-start;animation:nwrise .6s cubic-bezier(.2,.8,.2,1) both}
+.nw-brief .sun{width:44px;height:44px;border-radius:50%;flex:none;background:radial-gradient(circle,#fde68a 0,#f59e0b 70%);
+  box-shadow:0 0 0 6px rgba(245,158,11,.15),0 0 22px rgba(245,158,11,.55);animation:sunrise 1.4s ease-out both}
+@keyframes sunrise{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
+@keyframes nwrise{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.nw-brief h4{margin:0 0 4px 0;font-size:1.02rem}
+.nw-brief ul{margin:.2rem 0 0 1rem;padding:0;font-size:.86rem}
+.nw-brief.alert{border:2px solid #d97706;background:var(--warn-soft)}
+.nw-ticker{overflow:hidden;white-space:nowrap;border-radius:8px;background:#0b1b33;color:#cfe3ff;font-family:var(--mono);
+  font-size:.74rem;padding:6px 0;margin:-.3rem 0 .8rem;position:relative}
+.nw-ticker span{display:inline-block;padding-left:100%;animation:tick 38s linear infinite}
+.nw-ticker b{color:#fde68a}
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.nw-zones{display:flex;gap:10px;flex-wrap:wrap;margin:.2rem 0 .6rem}
+.nw-zone{border-radius:10px;padding:7px 10px;min-width:74px;color:#fff;font-weight:700;font-size:.8rem;position:relative}
+.nw-zone small{display:block;font-weight:500;opacity:.9;font-family:var(--mono)}
+.nw-zone.alarm{animation:zpulse 1.2s ease-in-out infinite}
+@keyframes zpulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.6)}50%{box-shadow:0 0 0 9px rgba(220,38,38,0)}}
 </style>"""
 
 
@@ -54,6 +74,75 @@ def _intro(nw: NightWatch | None) -> str:
             'If something is wrong, NEER <b>opens the case itself</b>, questions it, locates it and sends listening '
             'surveys under the standing night policy. A person is asked only before anyone digs.'
             f'<div class="nw-clock">{clock}</div></div>')
+
+
+def _briefing(nw: NightWatch, approver: str, role: str) -> str:
+    """Plain-English morning briefing: what happened last night and what needs a person."""
+    last = nw.nights[-1]
+    waiting = [(cid, c) for cid, c in nw.cases.items() if pending_interrupt(c.graph, c.cfg)]
+    colour, label = OUT[last["outcome"]]
+    items = [f"<li><b>Night {last['night']}:</b> {html.escape(last['note'])}</li>",
+             f"<li>{last['scan']['readings']:,} raw readings checked between 02:00 and 04:00; "
+             f"{len(last['scan']['unhealthy']) or 'no'} unhealthy sensor(s).</li>"]
+    k = nw.kpis()
+    items.append(f"<li>So far: {k['nights']} nights, {k['cases']} case(s) opened by NEER, {k['dismissed']} look-alike(s) "
+                 f"explained without a crew, {k['proven']} repair(s) proven.</li>")
+    if waiting:
+        names = ", ".join(f"<b>{cid}</b> (dig in {html.escape(str(pending_interrupt(c.graph, c.cfg).get('area')))})"
+                          for cid, c in waiting)
+        items.append(f"<li><b>Needs you:</b> {names}. Approve or reject in the inbox below "
+                     f"(as {html.escape(approver)}, {html.escape(role)}).</li>")
+    title = "Good morning. NEER needs a decision." if waiting else "Good morning. Nothing needs you right now."
+    return (f'<div class="nw-brief{" alert" if waiting else ""}"><div class="sun"></div><div><h4>{title}</h4>'
+            f'<ul>{"".join(items)}</ul></div></div>')
+
+
+def _ticker(nw: NightWatch) -> str:
+    bits = []
+    for n in nw.nights[-8:]:
+        bits.append(f"<b>NIGHT {n['night']}</b> {html.escape(OUT[n['outcome']][1].upper())}"
+                    + (f" · {html.escape(n['case_id'])}" if n["case_id"] else "")
+                    + f" · {html.escape(n['note'][:90])}")
+    return f'<div class="nw-ticker"><span>{"   ◆   ".join(bits)}</span></div>'
+
+
+def _zone_tiles(scan: dict) -> str:
+    cells = []
+    for z in scan["zones"]:
+        t = z["t"]
+        colour = "#dc2626" if t > config.Z_THR else ("#d97706" if t > 2 else "#16a34a")
+        cells.append(f'<div class="nw-zone{" alarm" if t > config.Z_THR else ""}" style="background:{colour}">'
+                     f'Zone {z["zone"]}<small>{z["excess_lps"]:+.1f} L/s · t {t:.1f}</small></div>')
+    return '<div class="nw-zones">' + "".join(cells) + "</div>"
+
+
+def _gauge(scan: dict):
+    extra = sum(max(z["excess_lps"], 0.0) for z in scan["zones"])
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number", value=round(extra, 1), number={"suffix": " L/s", "font": {"size": 34}},
+        title={"text": "Extra night water", "font": {"size": 13}},
+        gauge={"axis": {"range": [0, 60]}, "bar": {"color": "#0b3a66", "thickness": 0.28},
+               "steps": [{"range": [0, 5], "color": "#bbf7d0"}, {"range": [5, 15], "color": "#fde68a"},
+                         {"range": [15, 60], "color": "#fecaca"}],
+               "threshold": {"line": {"color": "#dc2626", "width": 3}, "thickness": 0.8, "value": 15}}))
+    fig.update_layout(height=210, margin=dict(l=20, r=20, t=40, b=0), paper_bgcolor="rgba(0,0,0,0)")
+    return fig
+
+
+def play_week(nw: NightWatch, nights: int = 7) -> str:
+    """Cinematic auto-play: one night at a time with the calendar redrawn live. Stops when a dig needs a person."""
+    import time
+    box = st.empty()
+    for _ in range(nights):
+        e = nw.run_night()
+        box.markdown(_calendar(nw) + f"<div style='font-size:.9rem'><b>Night {e['night']}</b>: "
+                     f"{html.escape(OUT[e['outcome']][1])}. {html.escape(e['note'])}</div>", unsafe_allow_html=True)
+        time.sleep(0.9)
+        if any(pending_interrupt(c.graph, c.cfg) for c in nw.cases.values()):
+            box.empty()
+            return f"Paused on night {e['night']}: NEER needs a person to approve a dig."
+    box.empty()
+    return f"Played {nights} nights."
 
 
 def _calendar(nw: NightWatch, ahead: int = 6) -> str:
@@ -92,7 +181,7 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
     nw: NightWatch | None = ss.get("nightwatch")
     st.markdown(_intro(nw), unsafe_allow_html=True)
 
-    b1, b2, b3, b4 = st.columns([1.3, 1.2, 1, 1.4])
+    b1, b2, b5, b3, b4 = st.columns([1.3, 1.1, 1.1, 0.8, 1.3])
     if nw is None:
         if b1.button("Start the live city", type="primary", width="stretch", icon=":material/nightlight:",
                      help="Create a fresh simulated city (seed from the sidebar) with hidden events NEER doesn't know about."):
@@ -105,7 +194,8 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
         with st.spinner("Sentinel scanning all raw data for 02:00–04:00 ..."):
             e = nw.run_night()
         colour, label = OUT[e["outcome"]]
-        st.toast(f"Night {e['night']}: {label}", icon=":material/nightlight:")
+        ss.nw_msg = f"Night {e['night']}: {label}. {e['note']}"
+        st.rerun()                                                   # the header KPIs read the fresh world
     if b2.button("Fast-forward 7 nights", width="stretch", icon=":material/fast_forward:",
                  help="Seven scans in a row. Cases that need a dig wait in the inbox, as they would overnight."):
         bar = st.progress(0.0, text="Fast-forwarding")
@@ -113,18 +203,28 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
             bar.progress(i / 7, text=f"Night {len(nw.nights) + 1}: scanning 02:00–04:00")
             nw.run_night()
         bar.empty()
+        ss.nw_msg = f"Fast-forwarded to night {len(nw.nights)}."
+        st.rerun()
+    if b5.button("Play the week", width="stretch", icon=":material/play_circle:",
+                 help="Watch the nights go by one at a time. It pauses by itself when a dig needs your approval."):
+        ss.nw_msg = play_week(nw)
+        st.rerun()
     if b3.button("New city", width="stretch", icon=":material/restart_alt:"):
         ss.nightwatch = NightWatch.start(int(seed), brain)
         st.rerun()
     b4.caption(f"Approvals are given by **{approver}** ({role}) from the sidebar. "
                "Only a supervisor or engineer can approve a dig.")
 
+    if ss.get("nw_msg"):
+        st.success(ss.pop("nw_msg"), icon=":material/nightlight:")
     k = nw.kpis()
     st.markdown(C.kpi_strip([
         ("Nights scanned", k["nights"]), ("Raw readings checked", f"{k['readings']:,}"), ("Clean nights", k["clean"]),
         ("Cases opened by NEER", k["cases"]), ("Look-alikes explained", k["dismissed"]),
         ("Waiting for a dig approval", k["waiting"]), ("Repairs proven", k["proven"]),
         ("Water saved", f"{k['saved_m3']:,.0f} m³/d")], highlight=3), unsafe_allow_html=True)
+    if nw.nights:
+        st.markdown(_briefing(nw, approver, role) + _ticker(nw), unsafe_allow_html=True)
     st.markdown(_calendar(nw), unsafe_allow_html=True)
 
     left, right = st.columns([1.05, 1], gap="large")
@@ -136,7 +236,10 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
             st.markdown(f"#### Night {last['night']}: what the Sentinel read")
             st.markdown(f'<span class="nw-pill" style="background:{colour}">{label}</span> {html.escape(last["note"])}',
                         unsafe_allow_html=True)
-            st.plotly_chart(_zone_chart(scan), width="stretch", config={"displayModeBar": False})
+            st.markdown(_zone_tiles(scan), unsafe_allow_html=True)
+            g1, g2 = st.columns([1, 1.35])
+            g1.plotly_chart(_gauge(scan), width="stretch", config={"displayModeBar": False})
+            g2.plotly_chart(_zone_chart(scan), width="stretch", config={"displayModeBar": False})
             dips = ", ".join(f"S{s} {d:+.2f} m" for s, d in scan["top_dips"])
             st.markdown(f"- **Pressure (02:00–04:00), biggest drops:** {dips}\n"
                         f"- **Sensor health:** {', '.join(scan['unhealthy']) + ' unhealthy (masked)' if scan['unhealthy'] else 'all 20 sensors OK'}\n"
@@ -169,7 +272,7 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
             c1, c2, c3 = st.columns(3)
             if waiting:
                 if c1.button("Approve dig", key=f"nwok_{cid}", type="primary", width="stretch"):
-                    nw.decide(cid, True, approver, role)
+                    ss.nw_msg = f"{cid}: dig decision recorded ({approver}, {role}) - now {nw.decide(cid, True, approver, role)}."
                     st.rerun()
                 if c2.button("Reject", key=f"nwno_{cid}", width="stretch"):
                     nw.decide(cid, False, approver, role)
@@ -177,9 +280,8 @@ def render(approver: str, role: str, seed: int, brain: str, reveal: bool, open_i
             if c3.button("Show on map", key=f"nwopen_{cid}", width="stretch",
                          help="Show this case with the map, 3D views, Auditor meter and ledger."):
                 open_in_room(nw, case)
-            with st.expander(f"{cid} timeline ({len(v.get('timeline', []))} steps)"):
-                for e in v.get("timeline", []):
-                    st.markdown(f"**{e['agent']}**: {e['text']}")
+            with st.expander(f"{cid}: the agents' conversation ({len(v.get('timeline', []))} messages)"):
+                st.markdown(wow.chat_html(v.get("timeline", [])), unsafe_allow_html=True)
 
     if nw.nights:
         with st.expander("Night log (every scan)"):

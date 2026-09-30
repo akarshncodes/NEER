@@ -29,7 +29,9 @@ def start_case(scenario: str, seed: int = 7, mode: str = "direct", llm: str = "r
     """Create the world for a scenario and a fresh graph + thread. Returns (graph, config, initial_state)."""
     os.environ["NEER_TOOL_MODE"] = mode
     if mode == "mcp":
-        os.environ["NEER_WORLD_SHARED"] = "1"
+        os.environ["NEER_WORLD_SHARED"] = "1"          # 4 server processes share the world through the file
+    else:
+        os.environ.pop("NEER_WORLD_SHARED", None)       # in-process: one world in memory (never a stale file)
     if llm == "rules":
         os.environ["NEER_LLM_CHAIN"] = "rules"
     set_world(World.new(scenario, seed))

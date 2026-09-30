@@ -470,3 +470,14 @@ All of it is plain HTML + CSS animation and Plotly. There are no extra libraries
 4. Set the role to **viewer** → Approve dig: refused, escalated. Set it back to **supervisor** → start a new city or wait for the next case → Approve: the Auditor proves FIXED.
 5. **Fast-forward 7 nights:** the calendar fills with a pump trip explained, look-alikes, and clean nights.
 6. **Show on map** on a case to show the 3D / Blueprint views of it.
+
+### Night watch and Control Room extras (latest)
+- **Morning briefing:** a sunrise card in plain English covering last night, the totals so far, and what needs you (with the approver and role). It turns amber when a dig is waiting.
+- **News ticker:** the last 8 nights scroll past like a control-room news line.
+- **Zone tiles:** one tile per zone with tonight's extra water and t-score. A zone over the alarm line pulses red.
+- **Night-water gauge:** the total unexplained water between 02:00 and 04:00 (green < 5 L/s, amber < 15, red above).
+- **Play the week:** the nights go by one at a time with the calendar redrawn live. It **pauses by itself** when a dig needs a person.
+- **Team chat:** the agents' timeline shown as a group chat, with an avatar per agent, human approvals on the right, AI/rules tags, and red and green bubbles for alerts and verdicts. It's in the Control Room (first sub-tab) and in each Night-watch inbox case.
+- **Fixed during testing:**
+  - After a case ran through the 4 MCP servers, later in-process and night-watch runs kept reading a shared world file. A dig approved later escalated by mistake. In-process mode now always uses one world in memory.
+  - The header KPIs now refresh straight after each night.

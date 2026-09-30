@@ -172,7 +172,7 @@ w = current_world()
 v = case_values()
 record_current()
 k = w.kpi if w else {}
-st.markdown(wow.hero(k, len(ss.get("case_log", {}))), unsafe_allow_html=True)
+st.markdown(wow.hero(k, max(len(ss.get("case_log", {})), int(k.get("cases", 0)))), unsafe_allow_html=True)
 _ai, _fb, _veto = C.ai_stats(v.get("timeline", []))
 if llm == "rules":
     brain_note.info("**Brain: rules only.** Every decision comes from the deterministic policy. No model is called.")
@@ -361,7 +361,9 @@ with tab_room:
             if b.button("Reject", width="stretch", icon=":material/close:"):
                 answer(False)
                 st.rerun()
-        tab1, tab3, tab2 = st.tabs(["Agent timeline", "Evidence ledger", "Tool trace"])
+        tab_chat, tab1, tab3, tab2 = st.tabs(["Team chat", "Agent timeline", "Evidence ledger", "Tool trace"])
+        with tab_chat:
+            st.markdown(wow.chat_html(v.get("timeline", [])), unsafe_allow_html=True)
         with tab3:
             led = v.get("ledger", [])
             if led:

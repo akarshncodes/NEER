@@ -41,6 +41,7 @@
 14. **The AI dismissed real leaks.** Groq said "dismiss" on real leaks; the rule veto overrode it and the Skeptic prompt now defines each decision.
 15. **Free-tier quotas.** Groq and Gemini limits caused HTTP 429s. The chain falls back cleanly, `NEER_LLM_MIN_INTERVAL_S` spaces calls, and a provider that fails twice on the network now rests for 60 s instead of costing up to 80 s per decision.
 16. **The jury called the map very bad.** It was rebuilt as an operations map on a Madurai basemap with an offline schematic fallback.
+19. **After an MCP-mode case, in-process runs kept using the shared world file.** The night watch and the tools then disagreed about the city, and a dig approved later was escalated. In-process mode now clears the shared flag, and the live city always activates its own in-memory world.
 18. **Scenario picking felt staged.** NEER now runs a live city and scans it every night at 02:00–04:00, opening cases itself. Three fixes made it reliable: events are scheduled by night (days spent in the Auditor's watch don't swallow them), multi-day windows never reach back past a repair, and the Skeptic checks minimum night flow before calling something "temporary".
 17. **An evaluation run while the dashboard was open shared its chaos and trace files.** Its chaos toggles could fire in the live demo and the demo's tool calls were counted in the eval. Evaluations now use private files under `data/runs/`.
 

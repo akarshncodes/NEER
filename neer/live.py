@@ -129,6 +129,7 @@ class NightWatch:
     def start(cls, seed: int = 7, brain: str = "rules") -> "NightWatch":
         import os
         os.environ["NEER_TOOL_MODE"] = "direct"                  # the live city runs in-process
+        os.environ.pop("NEER_WORLD_SHARED", None)
         if brain == "rules":
             os.environ["NEER_LLM_CHAIN"] = "rules"
         w = W.World.new("quiet", seed)
@@ -137,6 +138,9 @@ class NightWatch:
         return cls(seed=seed, brain=brain, world=w, reveal=reveal, first_day=w.city.day, schedule=schedule)
 
     def _activate(self) -> None:
+        import os
+        os.environ["NEER_TOOL_MODE"] = "direct"                  # the live city always runs in-process,
+        os.environ.pop("NEER_WORLD_SHARED", None)                # even if an MCP-mode case ran before
         W.set_world(self.world)                                  # other tabs may have switched worlds
 
     def active_zones(self) -> dict[str, str]:
