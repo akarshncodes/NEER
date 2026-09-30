@@ -2,9 +2,9 @@
 
     uv run streamlit run neer/app/dashboard.py
 
-Left: the city (zones, sensors, meters, leak probability, search areas).
+Left: the city (zones, sensors, meters, relative leak likelihood, search areas).
 Middle: the zone water bill, the evidence card and the Auditor's proof meter.
-Right: human approvals, the agent timeline and the live tool trace.
+Right: human approvals (with role-based access), the agent timeline, the evidence ledger and the live tool trace.
 Sidebar: scenario launcher, LLM chain, tool mode and the chaos switches.
 """
 from __future__ import annotations
@@ -65,7 +65,7 @@ def start(scenario: str, seed: int, mode: str, llm: str) -> None:
 
 
 def answer(ok: bool) -> None:
-    run(Command(resume={"approved": ok, "by": ss.get("approver", "Supervisor")}))
+    run(Command(resume={"approved": ok, "by": ss.get("approver", "Supervisor"), "role": ss.get("role", "supervisor")}))
 
 
 def autopilot() -> None:
@@ -90,6 +90,8 @@ with st.sidebar:
     mode = st.radio("Tools via", ["direct", "mcp"], horizontal=True,
                     format_func=lambda x: "in-process" if x == "direct" else "4 MCP servers")
     ss.approver = st.text_input("Approver name", value=ss.get("approver", "Supervisor"))
+    ss.role = st.selectbox("Approver role (access control)", ["supervisor", "engineer", "field crew", "viewer"],
+                           help="Only supervisor / engineer may approve a dig - the safety validator refuses others.")
     ss.speed = st.slider("Animation (s per step)", 0.0, 1.5, 0.35, 0.05)
     c1, c2 = st.columns(2)
     if c1.button("▶ Start case", type="primary", width="stretch"):
@@ -113,16 +115,17 @@ with st.sidebar:
 
 # ------------------------------------------------------------------ header + KPIs
 st.markdown("# NEER Control Room")
-st.caption("Doesn't panic · doesn't guess · never trusts 'job done' without proof. "
+st.caption("SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN · never trusts 'job done' without proof. "
            "Simulated city: EPA Net3, 5 zones, 20 pressure sensors, 15 zone meters.")
 w = current_world()
 v = case_values()
 k = w.kpi if w else {}
-cols = st.columns(7)
+cols = st.columns(8)
 for col, (label, val) in zip(cols, [
         ("Cases", k.get("cases", 0)), ("False alarms avoided", k.get("false_alarms_avoided", 0)),
         ("Acoustic checks", k.get("acoustic_checks", 0)), ("Digs", k.get("digs", 0)),
         ("Wasted digs", k.get("wasted_digs", 0)), ("Repairs proven", k.get("repairs_verified", 0)),
+        ("Crew-hours", f"{k.get('crew_hours', 0):.1f}"),
         ("Water saved", f"{k.get('litres_saved_per_day', 0) / 1000:,.0f} m³/d")]):
     col.markdown(f'<div class="kpi"><div class="v">{val}</div><div class="l">{label}</div></div>',
                  unsafe_allow_html=True)
@@ -194,7 +197,19 @@ with right:
         if b.button("✋ Reject", width="stretch"):
             answer(False)
             st.rerun()
-    tab1, tab2 = st.tabs(["Agent timeline", "Tool trace"])
+    tab1, tab3, tab2 = st.tabs(["Agent timeline", "Evidence ledger", "Tool trace"])
+    with tab3:
+        led = v.get("ledger", [])
+        if led:
+            ldf = pd.DataFrame(led)[["when", "dimension", "finding", "supports", "reliability", "source"]]
+            ldf["supports"] = ldf["supports"].map({"leak": "🔴 leak", "against": "🟢 against", "neutral": "⚪ neutral",
+                                                   "fixed": "✅ fixed"}).fillna(ldf["supports"])
+            st.dataframe(ldf, hide_index=True, width="stretch", height=420)
+        else:
+            st.caption("No evidence yet.")
+        bi = w.baseline.info()
+        st.caption(f"Baseline v{bi['version']} · {bi['clean_days']} certified-clean days · "
+                   f"{bi['pending_certified_days']} pending (updates need ≥ {config.BASELINE_MIN_NEW_DAYS})")
     with tab1:
         st.markdown(C.timeline_html(v.get("timeline", [])), unsafe_allow_html=True)
     with tab2:

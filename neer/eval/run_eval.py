@@ -29,6 +29,11 @@ def passed(expect: str, s) -> bool:
     return False
 
 
+def _median(xs):
+    xs = [x for x in xs if x is not None]
+    return round(float(sorted(xs)[len(xs) // 2]), 1) if xs else "-"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", default="7,8,9")
@@ -49,6 +54,10 @@ def main() -> None:
             good = passed(sc.expect, s)
             wld = W.load() if a.mode == "mcp" else W._world
             wrong_close = s.status == "closed" and len(wld.city.truth()) > 0      # closed while a leak still runs
+            digs = [wo for wo in wld.work_orders.values() if wo.action in ("dig", "repair")]
+            unsafe = sum(1 for wo in digs if not wo.approved_by or (wo.approver_role or "") not in config.APPROVER_ROLES)
+            invalid = sum(1 for r in tools if not r["ok"] and "invalid" in r["summary"].lower())
+            days_to_fix = (wld.city.day - wld.case_start_day) if s.status == "closed" else None
             total += 1
             ok += good
             texts = " ".join(e["text"] for e in s.timeline)
@@ -56,7 +65,9 @@ def main() -> None:
                              visits=s.visits, replans=s.replans, tools=len(tools),
                              tool_errors=sum(1 for r in tools if not r["ok"]), llm=len(llm), secs=round(secs, 1),
                              notfixed="NOT FIXED" in texts, partly="PARTLY FIXED" in texts, ok=good,
-                             wrong_close=wrong_close, escalated=s.status == "escalated"))
+                             wrong_close=wrong_close, escalated=s.status == "escalated",
+                             crew_hours=wld.kpi.get("crew_hours", 0.0), unsafe=unsafe, invalid=invalid,
+                             days_to_fix=days_to_fix, ledger=len(s.ledger)))
             print(f"{'PASS' if good else 'FAIL'}  {name:15} seed {seed}  {s.status:9} {s.verdict or '-':12} "
                   f"visits {s.visits}  tools {len(tools)}  {secs:.1f}s")
 
@@ -73,13 +84,14 @@ def main() -> None:
         "Simulated city (EPA Net3, harsh noise). A run passes when the case ends in the expected state:",
         "real leaks → CLOSED + FIXED (proven by the Auditor); look-alikes → WATCH / no alarm with **zero** field visits.",
         "",
-        "| Scenario | What happens | Expected | Passed | Avg visits | Avg tool calls | Tool errors recovered | Avg time |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Scenario | What happens | Expected | Passed | Avg visits | Avg crew-h | Avg tool calls | Tool errors recovered | Avg time |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for name, rs in by.items():
         n = len(rs)
         lines.append(f"| `{name}` | {SCENARIOS[name].title} | {SCENARIOS[name].expect} | {sum(r['ok'] for r in rs)}/{n} | "
-                     f"{sum(r['visits'] for r in rs) / n:.1f} | {sum(r['tools'] for r in rs) / n:.0f} | "
+                     f"{sum(r['visits'] for r in rs) / n:.1f} | {sum(r['crew_hours'] for r in rs) / n:.1f} | "
+                     f"{sum(r['tools'] for r in rs) / n:.0f} | "
                      f"{sum(r['tool_errors'] for r in rs)} | {sum(r['secs'] for r in rs) / n:.1f} s |")
     leak_rows = [r for r in rows if SCENARIOS[r["scenario"]].expect == "closed_fixed"]
     look_rows = [r for r in rows if SCENARIOS[r["scenario"]].expect != "closed_fixed"]
@@ -87,6 +99,13 @@ def main() -> None:
         "",
         "## Highlights",
         f"- Cases wrongly closed while a leak was still running: **{sum(r['wrong_close'] for r in rows)}/{total}**.",
+        f"- Safety: physical actions without a valid approver/role: **{sum(r['unsafe'] for r in rows)}**; "
+        f"invalid tool calls: **{sum(r['invalid'] for r in rows)}** of {sum(r['tools'] for r in rows)}.",
+        f"- Time to verified repair (simulated days from first anomaly to FIXED): median "
+        f"**{_median([r['days_to_fix'] for r in leak_rows if r['days_to_fix'] is not None])} days**; "
+        f"crew-hours per leak case: median **{_median([r['crew_hours'] for r in leak_rows])} h**.",
+        f"- Every case carries an evidence ledger (source tool, finding, direction, reliability): "
+        f"median {_median([r['ledger'] for r in rows if r['status'] != 'no_alarm'])} rows per case.",
         f"- Runs that did not pass ended safely (escalated to a human or on watch): "
         f"**{sum((not r['ok']) and (r['escalated'] or r['status'] in ('watch', 'no_alarm')) for r in rows)}"
         f"/{total - ok}**.",

@@ -41,7 +41,7 @@ def network_map(posterior: Optional[np.ndarray] = None, current_area: Optional[l
         ys += [a[1], b[1], None]
     fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color="#d9d8d2", width=1.4), hoverinfo="skip",
                              showlegend=False))
-    # junctions by zone (or probability heat)
+    # junctions by zone (+ relative-likelihood heat)
     for zi, z in enumerate(net.zone_names):
         js = [j for j in net.junctions if net.node_zone[j] == zi]
         op = 1.0 if highlight_zone in (None, z) else 0.35
@@ -52,7 +52,7 @@ def network_map(posterior: Optional[np.ndarray] = None, current_area: Optional[l
         p = posterior / posterior.max()
         top = np.argsort(-posterior)[:25]
         fig.add_trace(go.Scatter(x=[xy[net.junctions[i]][0] for i in top], y=[xy[net.junctions[i]][1] for i in top],
-                                 mode="markers", name="Leak probability",
+                                 mode="markers", name="Relative likelihood (not calibrated)",
                                  marker=dict(size=10 + 34 * p[top], color=p[top], colorscale="Blues", cmin=0, cmax=1,
                                              opacity=0.75, line=dict(color="#1d5aa6", width=1)),
                                  text=[f"{net.junctions[i]}: {posterior[i]:.1%}" for i in top], hoverinfo="text"))
@@ -147,10 +147,10 @@ def evidence_card(case_id: str, tier: str, zone: str, excess: float, dips: list,
                   areas: list[dict], next_step: str) -> str:
     dip = ", ".join(f"−{d:.2f} m at S{s}" for s, d in dips[:2]) if dips else "—"
     mask = f" ({', '.join(masked)} masked)" if masked else ""
-    ar = " · ".join(f"{a['area_id']} {a['probability']:.0%}" for a in areas[:3]) if areas else "—"
+    ar = " · ".join(f"{a['area_id']} {a['likelihood']:.0%}" for a in areas[:3]) if areas else "—"
     lines = [f"<b>Case {html.escape(case_id)} · {html.escape(tier)}</b>",
              f"Zone {zone} inflow: <b>{excess:+.1f} L/s</b> vs normal",
-             f"Pressure: {dip}{mask}", f"Ops check: {html.escape(ops)}", f"Areas: {ar}",
+             f"Pressure: {dip}{mask}", f"Ops check: {html.escape(ops)}", f"Areas (relative likelihood): {ar}",
              f"Next: {html.escape(next_step)}"]
     return '<div class="card">' + "<br>".join(lines) + "</div>"
 

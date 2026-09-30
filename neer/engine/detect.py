@@ -1,10 +1,12 @@
-"""Sentinel's rule: the three witnesses.
+"""Sentinel's rule (deterministic data monitor): three evidence dimensions.
 
-  water        a zone takes clearly more water than normal     (zone t > 4)
-  pressure     sensors dip more than normal days ever do        (score > threshold)
-  persistence  the anomaly is still there late in the day       (hours 18-23)
+  mass balance          a zone takes clearly more water than normal     (zone t > 4)
+  hydraulic response    pressure dips more than normal days ever do     (score > threshold)
+  temporal persistence  the anomaly is still there late in the day      (hours 18-23)
 
-Alarm = water OR pressure.  Tier: CONFIRMED (all three) > PROBABLE (+persistence) > WATCH.
+They are evidence dimensions, not independent witnesses (they come from the same network).
+Operational context and field evidence are added later by the Skeptic and the Field Commander.
+Alarm = mass balance OR hydraulic response.  Tier: CONFIRMED (all three) > PROBABLE (+persistence) > WATCH.
 """
 from __future__ import annotations
 

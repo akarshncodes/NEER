@@ -13,13 +13,14 @@ def _start(scenario="leak_20", seed=7):
     set_world(World.new(scenario, seed))
 
 
-def _find_and_dig(case="C1", approver="supervisor"):
+def _find_and_dig(case="C1", approver="Asha", role="supervisor"):
     """Search like the agents will: acoustic first, dig only on yes."""
     loc = T["locate_leak"](case_id=case)
-    for _ in range(6):
+    for _ in range(8):
         area = T["plan_search_areas"](case_id=case, n=1)[0]
         if T["acoustic_check"](case_id=case, area_id=area["area_id"])["result"] == "yes":
-            wo = T["create_work_order"](case_id=case, area_id=area["area_id"], action="dig", approved_by=approver)
+            wo = T["create_work_order"](case_id=case, area_id=area["area_id"], action="dig", approved_by=approver,
+                                        approver_role=role)
             st = T["crew_status"](work_order_id=wo["work_order_id"])
             if st["result"] == "repaired":
                 return loc, wo
@@ -62,7 +63,7 @@ def test_dig_guards_and_idempotency():
     _start()
     T["locate_leak"](case_id="C1")
     area = T["plan_search_areas"](case_id="C1", n=1)[0]["area_id"]
-    r = T["create_work_order"](case_id="C1", area_id=area, action="dig", approved_by="sup")
+    r = T["create_work_order"](case_id="C1", area_id=area, action="dig", approved_by="sup", approver_role="supervisor")
     assert is_error(r) and r["code"] == "refused"             # no acoustic yes yet
     a = T["create_work_order"](case_id="C1", area_id=area, action="acoustic")
     b = T["create_work_order"](case_id="C1", area_id=area, action="acoustic")
@@ -130,3 +131,32 @@ def test_mcp_servers_list_19_tools():
         return n
 
     assert asyncio.run(count()) == 19
+
+
+def test_role_based_approval_is_enforced():
+    _start()
+    T["locate_leak"](case_id="C1")
+    from neer.tools.world import session
+    with session() as w:                       # pretend the acoustic survey said yes in the top area
+        area = T["plan_search_areas"](case_id="C1", n=1)[0]["area_id"]
+        w.cases["C1"].acoustic_yes.add(area)
+    for role in ("viewer", "field crew", None):
+        r = T["create_work_order"](case_id="C1", area_id=area, action="dig", approved_by="Ravi", approver_role=role)
+        assert is_error(r) and r["code"] == "refused"
+    ok = T["create_work_order"](case_id="C1", area_id=area, action="dig", approved_by="Ravi", approver_role="engineer")
+    assert ok["approver_role"] == "engineer"
+    again = T["create_work_order"](case_id="C1", area_id=area, action="dig", approved_by="Ravi", approver_role="engineer")
+    assert again["work_order_id"] == ok["work_order_id"]        # idempotent while open
+    assert any(t["tool"] == "safety_validator" and "REFUSED" in t["summary"] for t in read_trace())
+
+
+def test_auditor_ignores_the_detectives_conclusion():
+    """Even if the Detective's zone and size are wrong, the Auditor measures the loss itself."""
+    _start()
+    _, wo = _find_and_dig()
+    from neer.tools.world import session
+    with session() as w:
+        c = w.cases["C1"]
+        c.zone_idx, c.pre_excess = 0, 0.0      # corrupt what the Detective said
+    v = T["verify_repair"](case_id="C1")
+    assert v["verdict"] == "FIXED" and v["pre_excess_lps"] > 10 and "Z5" in v["reason"]

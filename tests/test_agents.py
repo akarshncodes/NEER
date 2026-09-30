@@ -15,6 +15,10 @@ def _texts(state):
 def test_leak_case_closes_fixed():
     s = run_case("leak_20")
     assert s.status == "closed" and s.verdict == "FIXED" and s.contractor == "released"
+    dims = {row["dimension"] for row in s.ledger}
+    assert {"Mass balance", "Operational context", "Hydraulic localisation", "Field evidence",
+            "Independent audit"} <= dims
+    assert all(row["source"] for row in s.ledger)
     agents = {e["agent"] for e in s.timeline}
     assert {"Sentinel", "Skeptic", "Detective", "Orchestrator", "Field Commander", "Auditor", "Supervisor"} <= agents
 
@@ -88,3 +92,10 @@ def test_human_can_reject_the_plan():
 def test_case_through_mcp_servers():
     s = run_case("leak_20", mode="mcp")
     assert s.status == "closed" and s.verdict == "FIXED"
+
+
+@pytest.mark.slow
+def test_unauthorised_role_cannot_dig():
+    s = run_case("leak_40", approver="Visitor", approver_role="viewer")
+    assert s.status == "escalated" and s.verdict is None
+    assert "Dig refused" in _texts(s)

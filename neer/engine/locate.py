@@ -62,7 +62,7 @@ def locate(b: Baseline, days: list[DayData], masked: list[int] = (), prior: Opti
     evidence = [
         f"Zone {net.zone_names[zi]} takes {ex[zi]:+.1f} L/s more water than normal (t = {t[zi]:.1f}).",
         f"Pressure fingerprints matched at ~{max(ex[zi], 0):.0f} L/s; most likely area {areas[0].area_id} "
-        f"({areas[0].probability:.0%}).",
+        f"({areas[0].likelihood:.0%}).",
     ]
     return LocateResult(zone=net.zone_names[zi], leak_size_lps=round(float(max(ex[zi], 0)), 1),
                         zone_t={z: round(float(v), 2) for z, v in zip(net.zone_names, t)},

@@ -89,6 +89,7 @@ def search_run(lps: float, n: int, days: int = 3, seed0: int = 400, max_visits: 
     rng = np.random.default_rng(seed0)
     zone_ok = found3 = found_any = wasted = 0
     visits_needed = []
+    calib = []                                   # (top-area relative likelihood, leak really inside?)
     for k in range(n):
         c = SimCity(seed0 + k)
         b = Baseline(c.clean_history())
@@ -98,9 +99,13 @@ def search_run(lps: float, n: int, days: int = 3, seed0: int = 400, max_visits: 
         res, post = locate(b, obs)
         zone_ok += res.zone == net.zone_of(leak)
         w = SearchWeights()
+        first = plan_search_areas(post, w, 1, order="likelihood")[0]
+        calib.append((first.likelihood, leak in first.junctions))
         for v in range(1, max_visits + 1):
             area = plan_search_areas(post, w, 1)[0]
             ac = acoustic_check(area, [leak], rng)
+            if ac.result == "inconclusive":
+                continue                      # same area stays on top; the survey is repeated
             if ac.result == "yes":
                 if leak in area.junctions:
                     found_any += 1
@@ -113,7 +118,9 @@ def search_run(lps: float, n: int, days: int = 3, seed0: int = 400, max_visits: 
                 w.acoustic_no(area.junctions)
     return {"zone_correct": zone_ok / n, "found_within_3": found3 / n, "found_within_6": found_any / n,
             "wasted_digs_per_leak": wasted / n,
-            "median_visits": float(np.median(visits_needed)) if visits_needed else None}
+            "median_visits": float(np.median(visits_needed)) if visits_needed else None,
+            "top_likelihood_mean": float(np.mean([c[0] for c in calib])),
+            "top_area_hit_rate": float(np.mean([c[1] for c in calib]))}
 
 
 def audit_run(lps: float, case: str, n: int, seed0: int = 500) -> dict:

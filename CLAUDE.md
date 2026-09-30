@@ -1,7 +1,7 @@
 # CLAUDE.md: NEER (HackSprint'26, problem SC-02)
 
-NEER is an agentic AI system for water-network leak management, built during a 24-hour hackathon (30 Sep 2026 9:00 AM – 1 Oct 7:30 AM IST) that is judged on agentic AI.
-**Status: stages 0–6 are built and tested.** Read `README.md` first, then the part of `docs/SPEC.md` you need.
+NEER is an evidence-driven agentic system for closed-loop water leak investigation and repair verification (SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN). It was built during a 24-hour hackathon (30 Sep 2026 9:00 AM – 1 Oct 7:30 AM IST) that is judged on agentic AI.
+**Status: stages 0–7 are built and tested (stage 7 = V2-guide upgrades).** Read `README.md` first, then the part of `docs/SPEC.md` you need.
 
 ## Judging
 | Criterion | Weight |
@@ -18,32 +18,34 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
 1. **Physics and maths live in tested code** (`neer/engine`). The LLM only plans, critiques, chooses from an allowed set, and explains. It never produces a number that a tool did not return.
 2. **Contracts are in `neer/schemas.py`.** If you change one, update `docs/SPEC.md`.
 3. **Tests must stay green.**
-   - Run `uv run pytest -q` (51 tests; use `-m "not slow"` for a quick check).
+   - Run `uv run pytest -q` (56 tests; use `-m "not slow"` for a quick check).
    - Then commit as `stage/feature: summary`.
 4. **Deterministic:** every random process takes a seed. Demo scenarios must replay identically (`neer/sim/scenarios.py`).
 5. **Never block on the network.** The LLM chain ends in `rules`; the MCP transport falls back to direct calls.
-6. **Safety gates live inside the tools as well as the graph.** A dig needs an acoustic "yes" and a named approver. The contractor is released only on FIXED.
-7. **Honesty:** only quote numbers produced by `neer/eval/run_eval.py` or `scripts/engine_report.py`.
+6. **Safety gates live inside the tools as well as the graph.** `neer/tools/safety.py` requires an acoustic "yes", a named approver with role supervisor/engineer, and one open dig per case. SCADA is read-only. The contractor is released only on FIXED.
+7. **Honesty:** only quote numbers produced by `neer/eval/run_eval.py`, `neer/eval/ablation.py`, `scripts/engine_report.py` or `scripts/search_bench.py`. Area scores are relative likelihoods, not calibrated probabilities. Do not claim "first agentic water system", that all NRW is leakage, or live SCADA.
 8. Small files, plain-English docstrings, type hints.
+9. **The Auditor stays independent:** it measures the pre-repair loss itself and never reads the crew's report or the Detective's result.
+10. **Baseline memory is protected:** only Auditor-certified days, at least 2 before an update, and each update is versioned.
 
 ## Layout
 - `neer/config.py`: every constant (tested values)
 - `neer/schemas.py`: contracts
 - `neer/log.py`: logger (stderr, because stdout belongs to MCP)
 - `neer/sim/`: network.py (zones, meters, areas) · hydraulics.py (the only WNTR caller; unique temp files) · city.py (SimCity, DayData) · library.py (fingerprints, cached) · scenarios.py
-- `neer/engine/`: baseline · detect (3 witnesses) · skeptic · twin (event deltas) · locate · plan (soft elimination) · acoustic · audit (3-hypothesis sequential test) · bench
-- `neer/tools/`: scada · twin · field · audit (19 tools) · resilience (validate/timeout/retry/breaker/trace) · chaos · world (shared state; file-locked when `NEER_WORLD_SHARED=1`) · registry
+- `neer/engine/`: baseline (versioned, protected) · detect (3 evidence dimensions) · skeptic · twin (event deltas) · locate · plan (next-best-action value, soft elimination) · acoustic (yes/no/inconclusive) · audit (independent 3-hypothesis sequential test) · bench
+- `neer/tools/`: scada · twin · field · audit (19 tools) · safety (validator + RBAC) · resilience (validate/timeout/retry/breaker/trace) · chaos · world (shared state; file-locked when `NEER_WORLD_SHARED=1`) · registry
 - `neer/mcp_servers/`: common.py builds FastMCP servers returning one JSON text per call · client.py gives the stdio connection settings
 - `neer/agents/`:
   - state.py (CaseState)
   - llm.py (router + `rules`)
   - prompts.py
   - toolbox.py (MCP or direct)
-  - nodes.py (the 6 agents + human gates + wait)
+  - nodes.py (the 6 agents + human gates + wait; every node writes timeline + evidence-ledger rows)
   - graph.py
   - runner.py (CLI)
 - `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS)
-- `neer/eval/run_eval.py`: writes docs/EVAL.md
+- `neer/eval/run_eval.py`: writes docs/EVAL.md · `neer/eval/ablation.py`: writes docs/ABLATION.md
 
 ## Commands
 ```
@@ -51,6 +53,8 @@ uv sync
 uv run pytest -q
 uv run python -m neer.agents.runner --scenario leak_20 [--mode mcp] [--llm chain]
 uv run streamlit run neer/app/dashboard.py
-uv run python -m neer.eval.run_eval --seeds 21,22,23,24,25
+uv run python -m neer.eval.run_eval --seeds 41,42,43,44,45
+uv run python -m neer.eval.ablation 36
 uv run python scripts/engine_report.py 40
+uv run python scripts/search_bench.py 120
 ```

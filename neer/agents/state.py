@@ -27,6 +27,7 @@ class CaseState(BaseModel):
     window_days: int = 1                       # how many days of data raised the alarm
     alarm_excess_lps: float = 0.0
     waits: int = 0
+    sim_day: int = 0
     zone: Optional[str] = None
     leak_size_lps: float = 0.0
     skeptic_verdict: Optional[str] = None
@@ -34,7 +35,7 @@ class CaseState(BaseModel):
     areas: list[dict] = Field(default_factory=list)          # current ordered search areas
     current_area: Optional[str] = None
     next_action: Optional[str] = None
-    last_event: str = "start"                  # start | located | acoustic_yes | acoustic_no | dig_empty |
+    last_event: str = "start"                  # start | located | acoustic_yes | acoustic_no | acoustic_inconclusive | dig_empty |
                                                # dig_rejected | not_fixed | partly | inconclusive
     plan_reason: str = ""
     plan_reviewed: bool = False
@@ -47,9 +48,11 @@ class CaseState(BaseModel):
     inconclusive_waits: int = 0
     work_order: Optional[str] = None
     dig_approver: Optional[str] = None
+    dig_approver_role: Optional[str] = None
     verdict: Optional[str] = None
     verdict_reason: str = ""
     llr_trace: list[float] = Field(default_factory=list)
     contractor: Optional[str] = None
     evidence: list[str] = Field(default_factory=list)
     timeline: Annotated[list[dict], operator.add] = Field(default_factory=list)   # TimelineEntry dicts
+    ledger: Annotated[list[dict], operator.add] = Field(default_factory=list)     # evidence ledger rows

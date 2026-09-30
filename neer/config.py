@@ -85,9 +85,17 @@ LONE_WOLF_SECOND = 2.0
 # search / field
 SOFT_ACOUSTIC_NO = 0.15         # area weight after an acoustic "no"
 SOFT_EMPTY_DIG = 0.10           # area weight after a dig found nothing
-SOFT_NOT_FIXED = 0.50           # repaired area when the Auditor says NOT FIXED (maybe the wrong pipe nearby)
+SOFT_NOT_FIXED = 1.00           # repaired area when the Auditor says NOT FIXED: the crew DID find leak signs there,
+                                # so the site keeps its weight (most often a wrong pipe nearby)
 ACOUSTIC_SENSITIVITY = 0.85
 ACOUSTIC_FPR = 0.05
+ACOUSTIC_INCONCLUSIVE = 0.05    # traffic noise / plastic pipe: the survey cannot decide
+SURVEY_SETUP_H = 1.0            # crew-hours to set up an overnight acoustic survey
+SURVEY_H_PER_KM = 1.0           # crew-hours per km of pipe walked
+DIG_HOURS = 6.0                 # crew-hours for an excavation + repair
+PLAN_MODE = os.getenv("NEER_PLAN_MODE", "fast")   # fast = find the leak soonest; cheap = save crew-hours
+IG_WEIGHT = 0.3                 # information gain as tie-breaker in the next-best-action value
+COST_WEIGHT = 0.0 if PLAN_MODE == "fast" else 0.2
 MAX_REPLANS = 6
 MIN_ACTIONABLE_LPS = 6.0        # smaller signals: wait for more days of data before sending anyone
 MAX_WAIT_DAYS = 2
@@ -101,6 +109,13 @@ SPRT_NOISE_INFLATE = 2.0
 SPRT_MAX_HOURS = 72
 PARTIAL_DROP = 0.35             # >35 % drop but still leaking -> PARTLY FIXED
 UNHEALTHY_SENSOR_FRAC = 0.30
+
+# baseline memory safety
+BASELINE_MIN_NEW_DAYS = 2       # never update 'normal' from a single clean observation
+BASELINE_MAX_DAYS = 14          # rolling window, so seasonal / policy changes are learned gradually
+
+# safety: who may approve physical actions (role-based access control)
+APPROVER_ROLES = ("supervisor", "engineer")
 
 # ---------------------------------------------------------------- LLM / tools
 LLM_CHAIN = os.getenv(

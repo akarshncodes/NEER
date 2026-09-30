@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
+import numpy as np
+
 from neer import config
 from neer.engine.audit import sequential_verify
 from neer.schemas import AuditKind, AuditVerdict
@@ -12,33 +14,45 @@ from neer.tools.world import session
 
 @resilient_tool("audit", timeout_s=30)
 def verify_repair(case_id: str) -> AuditVerdict:
-    """Prove the repair from zone meter data only, hour by hour (never from the crew's report).
-    Watches up to 3 days; returns FIXED / PARTLY_FIXED / NOT_FIXED / INCONCLUSIVE with the evidence trace."""
+    """Prove the repair from meter data only, hour by hour. The Auditor is INDEPENDENT: it never reads the crew's
+    report and never uses the Detective's conclusion - it measures the pre-repair loss itself from SCADA, picks the
+    zone that was losing water, then tests the post-repair hours. Watches up to 3 days; returns
+    FIXED / PARTLY_FIXED / NOT_FIXED / INCONCLUSIVE with the evidence trace."""
     with session() as w:
         if case_id not in w.cases:
             raise ValueError(f"unknown case {case_id}")
         c = w.cases[case_id]
         if c.repair_day is None:
             raise ValueError("no repair recorded for this case yet")
-        unhealthy = len(c.masked) / len(w.city.net.sensors)
-        after = []
-        verdict = None
-        for _ in range(3):
-            after.append(w.advance_day())
-            verdict = sequential_verify(w.baseline, after, c.zone_idx, c.pre_excess, unhealthy)
-            if verdict.verdict != AuditKind.inconclusive:
-                break
+        net, b = w.city.net, w.baseline
+        # --- the Auditor's own pre-repair measurement (last 2 days before the repair)
+        before = [d for d in w.city.history if d.day < c.repair_day][-2:]
+        t_pre, ex_pre = b.zone_t(before), b.zone_excess(before)
+        zi = int(np.argmax(t_pre))
+        if t_pre[zi] < config.Z_THR:
+            verdict = AuditVerdict(verdict=AuditKind.inconclusive, hours_used=0, llr_trace=[], pre_excess_lps=0.0,
+                                   post_excess_lps=0.0, reason="No clear pre-repair water loss to verify against.")
+        else:
+            unhealthy = len(c.masked) / len(net.sensors)
+            after = []
+            verdict = None
+            for _ in range(3):
+                after.append(w.advance_day())
+                verdict = sequential_verify(b, after, zi, float(ex_pre[zi]), unhealthy)
+                if verdict.verdict != AuditKind.inconclusive:
+                    break
+            verdict.reason = f"[{net.zone_names[zi]}, own meter reading] " + verdict.reason
         c.last_verdict = verdict
+        c.audit_zone = net.zone_names[zi]
         if verdict.verdict == AuditKind.fixed:
             w.kpi["repairs_verified"] += 1
-            w.kpi["litres_saved_per_day"] += round(c.pre_excess * 86400)      # L/s -> litres per day
-            for d in after:                     # the network is proven clean: learn "normal" from it
-                w.baseline.add_certified_clean(d)
+            w.kpi["litres_saved_per_day"] += round(verdict.pre_excess_lps * 86400)      # L/s -> litres per day
+            for d in after:          # proven clean: queue for the protected baseline (needs >= 2 certified days)
+                if b.add_certified_clean(d):
+                    w.kpi["baseline_updates"] = w.kpi.get("baseline_updates", 0) + 1
         elif verdict.verdict in (AuditKind.not_fixed, AuditKind.partly_fixed):
             w.kpi["repairs_rejected"] += 1
-            if verdict.verdict == AuditKind.partly_fixed:
-                c.pre_excess = max(verdict.post_excess_lps, 1.0)     # hunt what is left
-            elif c.last_dig_area in c.areas:                          # repaired there, still leaking
+            if verdict.verdict == AuditKind.not_fixed and c.last_dig_area in c.areas:   # repaired there, still leaking
                 c.weights.downweight(c.areas[c.last_dig_area], config.SOFT_NOT_FIXED)
             c.repair_day = None
         return verdict
@@ -76,4 +90,6 @@ def case_memory(op: Literal["read", "write"], key: str, value: Optional[str] = N
 def kpi_report() -> dict:
     """Operational KPIs so far: cases, false alarms avoided, digs, wasted digs, verified repairs, water saved."""
     with session(write=False) as w:
-        return dict(w.kpi)
+        k = dict(w.kpi)
+        k["baseline"] = w.baseline.info()
+        return k

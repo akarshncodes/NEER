@@ -22,7 +22,7 @@ def _scada_chaos() -> None:
 @resilient_tool("scada", chaos_hook=_scada_chaos)
 def get_zone_flow(zone: Optional[str] = None, days: int = 1) -> ZoneFlowReport:
     """Water entering each zone (net of bulk customers) vs normal, the unexplained excess (L/s),
-    its t-score, and the three-witness detection summary for the last `days` days."""
+    its t-score, and the evidence summary (mass balance, hydraulic response, persistence) for the last `days` days."""
     if not 1 <= days <= 7:
         raise ValueError("days must be between 1 and 7")
     with session(write=False) as w:

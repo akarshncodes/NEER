@@ -39,6 +39,7 @@ class CaseRecord:
     last_verdict: Optional[AuditVerdict] = None
     masked: list[str] = field(default_factory=list)
     last_dig_area: Optional[str] = None
+    audit_zone: Optional[str] = None
 
 
 @dataclass
@@ -56,7 +57,8 @@ class World:
     misfix_remaining: int = 0
     kpi: dict[str, float] = field(default_factory=lambda: {
         "cases": 0, "false_alarms_avoided": 0, "acoustic_checks": 0, "digs": 0, "wasted_digs": 0,
-        "repairs_verified": 0, "repairs_rejected": 0, "litres_saved_per_day": 0.0, "contractors_held": 0})
+        "repairs_verified": 0, "repairs_rejected": 0, "litres_saved_per_day": 0.0, "contractors_held": 0,
+        "crew_hours": 0.0, "baseline_updates": 0, "refused_actions": 0})
 
     # ------------------------------------------------------------ creation
     @classmethod

@@ -26,6 +26,8 @@ for q in (10, 20, 40):
     r = B.search_run(q, n)
     tab.add_row(f"Search {q} L/s: zone / found<=3 visits / wasted digs",
                 f"{r['zone_correct']:.0%} / {r['found_within_3']:.0%} / {r['wasted_digs_per_leak']:.2f}")
+    tab.add_row(f"Calibration {q} L/s: top-area likelihood vs real hit rate",
+                f"{r['top_likelihood_mean']:.0%} said vs {r['top_area_hit_rate']:.0%} real")
 for q in (10, 20, 40):
     for case in ("fixed", "not_fixed", "partly"):
         r = B.audit_run(q, case, n)

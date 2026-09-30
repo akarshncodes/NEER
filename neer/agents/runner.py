@@ -56,7 +56,8 @@ def pending_interrupt(graph, cfg) -> Optional[dict]:
 
 
 def run_case(scenario: str, seed: int = 7, auto_approve: bool = True, mode: str = "direct", llm: str = "rules",
-             on_entry: Callable[[TimelineEntry], None] | None = None, approver: str = "supervisor") -> CaseState:
+             on_entry: Callable[[TimelineEntry], None] | None = None, approver: str = "Supervisor",
+             approver_role: str = "supervisor") -> CaseState:
     """Run a whole case; with auto_approve the supervisor says yes to every request."""
     graph, cfg, init = start_case(scenario, seed, mode, llm)
     payload = init
@@ -70,7 +71,7 @@ def run_case(scenario: str, seed: int = 7, auto_approve: bool = True, mode: str 
             break
         if not auto_approve:
             raise RuntimeError(f"waiting for human approval: {req}")
-        payload = Command(resume={"approved": True, "by": approver})
+        payload = Command(resume={"approved": True, "by": approver, "role": approver_role})
     return CaseState(**graph.get_state(cfg).values)
 
 

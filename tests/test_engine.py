@@ -35,16 +35,41 @@ def test_areas_are_distinct_and_ordered():
     p = np.random.default_rng(0).random(92)
     areas = plan_search_areas(p / p.sum(), n=3)
     assert len({a.area_id for a in areas}) == 3
-    assert areas[0].probability >= areas[1].probability >= areas[2].probability
+    assert areas[0].likelihood >= areas[1].likelihood >= areas[2].likelihood
 
 
 def test_acoustic_rates():
     rng = np.random.default_rng(1)
-    area = SearchArea(area_id="A-239", junctions=["239"], probability=1, pipe_km=1)
-    hit = np.mean([acoustic_check(area, ["239"], rng).result == "yes" for _ in range(2000)])
-    fp = np.mean([acoustic_check(area, ["10"], rng).result == "yes" for _ in range(2000)])
+    area = SearchArea(area_id="A-239", junctions=["239"], likelihood=1, pipe_km=1)
+    res_in = [acoustic_check(area, ["239"], rng).result for _ in range(4000)]
+    res_out = [acoustic_check(area, ["10"], rng).result for _ in range(4000)]
+    inc = np.mean([r == "inconclusive" for r in res_in + res_out])
+    hit = np.mean([r == "yes" for r in res_in if r != "inconclusive"])
+    fp = np.mean([r == "yes" for r in res_out if r != "inconclusive"])
+    assert abs(inc - config.ACOUSTIC_INCONCLUSIVE) < 0.02
     assert abs(hit - config.ACOUSTIC_SENSITIVITY) < 0.03 and abs(fp - config.ACOUSTIC_FPR) < 0.02
     assert acoustic_check(area, ["239"], rng, force_no=True).result == "no"
+
+
+def test_next_best_action_scores():
+    net = get_network()
+    p = np.full(92, 1e-6)
+    p[net.jindex["239"]] = 0.6                  # two suspects far apart: a survey near 239 is informative
+    p[net.jindex["10"]] = 0.4
+    top = plan_search_areas(p / p.sum(), n=1)[0]
+    assert "239" in top.junctions and top.info_gain > 0 and top.cost_hours >= config.SURVEY_SETUP_H
+    flat = plan_search_areas(np.full(92, 1 / 92), n=3)
+    assert all(0 <= a.likelihood <= 1 for a in flat)
+
+
+def test_baseline_needs_two_certified_days_and_versions():
+    c = SimCity(31)
+    b = Baseline(c.clean_history())
+    d1, d2 = c.advance_day(), c.advance_day()
+    assert b.add_certified_clean(d1) is False and b.info()["version"] == 1    # one clean day is not enough
+    assert b.add_certified_clean(d1) is False                                  # duplicates ignored
+    assert b.add_certified_clean(d2) is True and b.info()["version"] == 2
+    assert b.info()["clean_days"] == config.HISTORY_DAYS + 2
 
 
 # ---------------------------------------------------------------- statistical tests (seeded)

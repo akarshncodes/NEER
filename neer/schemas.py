@@ -98,7 +98,7 @@ class ZoneFlow(BaseModel):
 class ZoneFlowReport(BaseModel):
     day: int
     zones: list[ZoneFlow]
-    detection: Optional["Detection"] = Field(default=None, description="Three-witness summary for the same data")
+    detection: Optional["Detection"] = Field(default=None, description="Evidence-dimension summary for the same data")
 
 
 class SensorPressure(BaseModel):
@@ -145,9 +145,9 @@ class Tier(str, Enum):
 class Detection(BaseModel):
     alarm: bool
     tier: Tier
-    water: bool = Field(description="Witness 1: a zone takes more water than normal")
-    pressure: bool = Field(description="Witness 2: pressure dips like a leak")
-    persistence: bool = Field(description="Witness 3: it is still there late in the day")
+    water: bool = Field(description="Mass-balance evidence: a zone takes more water than normal")
+    pressure: bool = Field(description="Hydraulic-response evidence: pressure dips like a leak")
+    persistence: bool = Field(description="Temporal-persistence evidence: still there late in the day")
     zone_t: dict[str, float]
     zone_excess_lps: dict[str, float]
     pressure_score: float
@@ -174,8 +174,11 @@ class SkepticVerdict(BaseModel):
 class SearchArea(BaseModel):
     area_id: str = Field(description="A-<junction>")
     junctions: list[str]
-    probability: float
+    likelihood: float = Field(description="Relative likelihood share of the remaining evidence (NOT a calibrated probability)")
     pipe_km: float
+    info_gain: float = Field(default=0.0, description="Expected information gain of an acoustic check here (nats)")
+    cost_hours: float = Field(default=0.0, description="Estimated crew-hours for an acoustic survey of this area")
+    action_value: float = Field(default=0.0, description="Next-best-action value: (chance of finding + weighted information gain) / cost factor")
 
 
 class LocateResult(BaseModel):
@@ -188,7 +191,7 @@ class LocateResult(BaseModel):
 
 class AcousticResult(BaseModel):
     area_id: str
-    result: Literal["yes", "no"]
+    result: Literal["yes", "no", "inconclusive"]
     confidence: float
 
 
@@ -199,6 +202,8 @@ class WorkOrder(BaseModel):
     action: Literal["acoustic", "dig", "repair"]
     status: Literal["open", "done"] = "open"
     result: Optional[str] = None
+    approved_by: Optional[str] = None
+    approver_role: Optional[str] = None
 
 
 class CrewStatus(BaseModel):
