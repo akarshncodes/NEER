@@ -20,6 +20,7 @@ from langgraph.types import Command
 from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
+from neer.app import geo, opsmap
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -61,6 +62,7 @@ def start(scenario: str, seed: int, mode: str, llm: str) -> None:
     ss.graph, ss.cfg, init = start_case(scenario, seed, mode, llm)
     ss.scenario = scenario
     ss.brain = llm
+    ss.map_view = "zone"
     ss.pending = None
     run(init)
 
@@ -89,6 +91,8 @@ with st.sidebar:
                 "Ollama": os.getenv("NEER_USE_OLLAMA") == "1"}
         st.caption("Chain: " + " → ".join(f"{k} {'✅' if v else '⛔'}" for k, v in keys.items()) + " → rules ✅")
     brain_note = st.empty()        # filled after the buttons have run, so its counts are current
+    map_mode = st.radio("Map", ["city", "schematic"], horizontal=True,
+                        format_func=lambda x: "City map" if x == "city" else "Schematic")
     mode = st.radio("Tools via", ["direct", "mcp"], horizontal=True,
                     format_func=lambda x: "in-process" if x == "direct" else "4 MCP servers")
     ss.approver = st.text_input("Approver name", value=ss.get("approver", "Supervisor"))
@@ -153,27 +157,50 @@ st.markdown(f'<span class="badge" style="background:{colour};color:#fff">{status
             + (f'<span class="badge" style="background:#e9f5ec">Verdict {v["verdict"]}</span>' if v.get("verdict") else ""),
             unsafe_allow_html=True)
 
-left, mid, right = st.columns([1.25, 1.0, 1.05])
+left, mid, right = st.columns([1.55, 0.9, 1.0])
 
 # ------------------------------------------------------------------ left: map
 case = w.cases.get(v.get("case_id")) if w else None
 with left:
-    post = case.posterior if case is not None else None
-    quiet = []
-    if case is not None:
-        quiet = [js for aid, js in case.areas.items()
-                 if aid != v.get("current_area") and case.weights.w[[net.jindex[j] for j in js]].mean() < 0.5]
-    cur = case.areas.get(v.get("current_area")) if case is not None and v.get("current_area") else None
-    rep = case.areas.get(case.last_dig_area) if case is not None and case.last_dig_area else None
-    leaks = [e.node for e in SCENARIOS[ss.scenario].events if getattr(e, "kind", "") == "leak"] if reveal else []
-    st.plotly_chart(C.network_map(post, cur, quiet, rep if v.get("verdict") else None, leaks, v.get("zone")),
+    areas = case.areas if case is not None else {}
+    named = lambda aid: (aid, areas[aid]) if aid in areas else None                  # noqa: E731
+    cur_id = v.get("current_area")
+    quiet = [(aid, js) for aid, js in areas.items()
+             if aid != cur_id and case.weights.w[[net.jindex[j] for j in js]].mean() < 0.5]
+    hist = w.city.history[-5:]
+    drop = w.baseline.pressure_residual(hist[-1:])[:6].mean(0) if hist else np.zeros(len(net.sensors))   # night hours
+    located = bool(v.get("areas"))                                                   # the Detective has run
+    field_work = status == "open" and v.get("plan_approved") and v.get("next_action") in ("acoustic_check", "dig")
+    done = status == "closed"                                                        # proven FIXED: show the outcome only
+    layers = opsmap.Layers(
+        posterior=case.posterior if case is not None and not done else None,
+        top_areas=[] if done else [n for n in (named(a["area_id"]) for a in v.get("areas", [])) if n],
+        current=named(cur_id) if cur_id and not done else None, quiet=[] if done else quiet,
+        repaired=named(case.last_dig_area) if case is not None and case.last_dig_area and v.get("verdict") == "FIXED" else None,
+        true_leaks=[e.node for e in SCENARIOS[ss.scenario].events if getattr(e, "kind", "") == "leak"]
+        if reveal and status == "closed" else [],
+        case_zone=v.get("zone") if located else None,
+        sensor_drop={s: float(d) for s, d in zip(net.sensors, drop)}, masked=list(case.masked) if case else [],
+        crew=bool(field_work and cur_id))
+    eff_mode = map_mode
+    if map_mode == "city" and not geo.tiles_available():
+        eff_mode = "schematic"
+        st.caption("Basemap tiles unreachable (offline): showing the schematic map.")
+    b1, b2, _ = st.columns([1, 1, 2.2])
+    if b1.button("Full city", width="stretch"):
+        ss.map_view = "full"
+    if b2.button("Case zone", width="stretch", disabled=not located):
+        ss.map_view = "zone"
+    st.plotly_chart(opsmap.build_map(eff_mode, layers, ss.get("map_view", "zone"),
+                                     uirevision=f"{v.get('case_id')}-{ss.get('map_view', 'zone')}-{eff_mode}-{located}",
+                                     height=600, width_px=560),
                     width="stretch", config={"displayModeBar": False})
+    st.markdown(opsmap.legend_html(), unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ middle: water bill, card, meter
 with mid:
     zone = v.get("zone") or net.zone_names[0]
     zi = net.zone_names.index(zone)
-    hist = w.city.history[-5:]
     st.plotly_chart(C.water_bill([d.zone_inflow[:, zi] for d in hist], w.baseline.zn[:, zi], w.baseline.zs[:, zi],
                                  zone, [f"Day {d.day}" for d in hist]), width="stretch",
                     config={"displayModeBar": False})

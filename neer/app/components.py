@@ -8,7 +8,6 @@ import numpy as np
 import plotly.graph_objects as go
 
 from neer import config
-from neer.sim.network import get_network
 
 ZONE_COLOURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 AGENT_COLOURS = {"Sentinel": "#0e8fa3", "Skeptic": "#c73636", "Detective": "#2a78d6", "Orchestrator": "#1d3f8a",
@@ -22,73 +21,6 @@ def _layout(fig: go.Figure, height: int, title: str = "") -> go.Figure:
                       font=dict(family="Inter, sans-serif", size=12, color=INK2), showlegend=True,
                       legend=dict(orientation="h", y=-0.02, x=0, font=dict(size=11)))
     return fig
-
-
-# ------------------------------------------------------------------ network map
-def network_map(posterior: Optional[np.ndarray] = None, current_area: Optional[list[str]] = None,
-                quiet_areas: list[list[str]] = (), repaired_area: Optional[list[str]] = None,
-                true_leaks: list[str] = (), highlight_zone: Optional[str] = None, height: int = 520) -> go.Figure:
-    net = get_network()
-    wn = net.wn
-    xy = net.coords
-    fig = go.Figure()
-    # pipes
-    xs, ys = [], []
-    for l in wn.link_name_list:
-        lk = wn.get_link(l)
-        a, b = xy[lk.start_node_name], xy[lk.end_node_name]
-        xs += [a[0], b[0], None]
-        ys += [a[1], b[1], None]
-    fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color="#d9d8d2", width=1.4), hoverinfo="skip",
-                             showlegend=False))
-    # junctions by zone (+ relative-likelihood heat)
-    for zi, z in enumerate(net.zone_names):
-        js = [j for j in net.junctions if net.node_zone[j] == zi]
-        op = 1.0 if highlight_zone in (None, z) else 0.35
-        fig.add_trace(go.Scatter(x=[xy[j][0] for j in js], y=[xy[j][1] for j in js], mode="markers",
-                                 marker=dict(size=6, color=ZONE_COLOURS[zi], opacity=op), name=z,
-                                 text=[f"Junction {j} · {z}" for j in js], hoverinfo="text"))
-    if posterior is not None:
-        p = posterior / posterior.max()
-        top = np.argsort(-posterior)[:25]
-        fig.add_trace(go.Scatter(x=[xy[net.junctions[i]][0] for i in top], y=[xy[net.junctions[i]][1] for i in top],
-                                 mode="markers", name="Relative likelihood (not calibrated)",
-                                 marker=dict(size=10 + 34 * p[top], color=p[top], colorscale="Blues", cmin=0, cmax=1,
-                                             opacity=0.75, line=dict(color="#1d5aa6", width=1)),
-                                 text=[f"{net.junctions[i]}: {posterior[i]:.1%}" for i in top], hoverinfo="text"))
-    # sensors & meters
-    fig.add_trace(go.Scatter(x=[xy[s][0] for s in net.sensors], y=[xy[s][1] for s in net.sensors], mode="markers",
-                             marker=dict(symbol="triangle-up", size=9, color="white", line=dict(color=INK, width=1.3)),
-                             name="Pressure sensor", text=[f"Sensor {s}" for s in net.sensors], hoverinfo="text"))
-    mx, my = [], []
-    for l in net.meters:
-        lk = wn.get_link(l)
-        a, b = np.array(xy[lk.start_node_name]), np.array(xy[lk.end_node_name])
-        m = (a + b) / 2
-        mx.append(m[0]); my.append(m[1])
-    fig.add_trace(go.Scatter(x=mx, y=my, mode="markers", marker=dict(symbol="square", size=8, color=INK),
-                             name="Zone meter", text=[f"Meter on pipe {l}" for l in net.meters], hoverinfo="text"))
-    # areas
-    def ring(junctions, colour, name, dash):
-        pts = np.array([xy[j] for j in junctions])
-        c = pts.mean(0)
-        span = np.ptp(np.array(list(xy.values())), axis=0).max()
-        r = np.max(np.linalg.norm(pts - c, axis=1)) * 1.2 + 0.02 * span
-        t = np.linspace(0, 2 * np.pi, 60)
-        fig.add_trace(go.Scatter(x=c[0] + r * np.cos(t), y=c[1] + r * np.sin(t), mode="lines", name=name,
-                                 line=dict(color=colour, width=2.4, dash=dash), hoverinfo="name"))
-    for i, a in enumerate(quiet_areas):
-        ring(a, "#c73636", "Quiet area (acoustic no)" if i == 0 else None, "dot")
-    if current_area:
-        ring(current_area, "#1d5aa6", "Current search area", "solid")
-    if repaired_area:
-        ring(repaired_area, "#1a8a3c", "Repaired area", "dash")
-    if true_leaks:
-        fig.add_trace(go.Scatter(x=[xy[n][0] for n in true_leaks], y=[xy[n][1] for n in true_leaks], mode="markers",
-                                 marker=dict(symbol="star", size=18, color="#0b0b0b"), name="TRUE leak (reveal)"))
-    fig.update_xaxes(visible=False)
-    fig.update_yaxes(visible=False, scaleanchor="x")
-    return _layout(fig, height)
 
 
 # ------------------------------------------------------------------ zone water bill
@@ -213,6 +145,8 @@ h1{font-size:1.7rem !important;letter-spacing:-.02em}
 .tl.verdict{background:#f4faf5}.tl.alert{background:#fdf6f6}.tl.human{background:#fbf5e8}
 .card{font-family:'DejaVu Sans Mono',monospace;font-size:.8rem;line-height:1.55;border:1.5px solid #1d5aa6;
       border-radius:10px;padding:10px 12px;background:#f6f9fe}
+.maplegend{display:flex;gap:8px;align-items:center;font-size:.62rem;color:#3d3c39;white-space:nowrap;overflow:hidden;margin-top:2px}
+.maplegend i{display:inline-block;vertical-align:middle;margin-right:3px}
 .badge{display:inline-block;border-radius:12px;padding:2px 10px;font-weight:700;font-size:.8rem;margin-right:6px}
 .approve{border:2px solid #b87800;background:#fbf5e8;border-radius:10px;padding:10px 12px;margin-bottom:8px}
 </style>

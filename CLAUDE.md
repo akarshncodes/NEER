@@ -44,7 +44,7 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
   - nodes.py (the 6 agents + human gates + wait; every node writes timeline + evidence-ledger rows)
   - graph.py
   - runner.py (CLI)
-- `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS)
+- `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS) · opsmap.py (city map on OpenStreetMap / schematic) · geo.py (`to_latlon`, hulls, tile check)
 - `neer/eval/run_eval.py`: writes docs/EVAL.md · `neer/eval/ablation.py`: writes docs/ABLATION.md
 
 ## Commands
