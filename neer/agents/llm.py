@@ -87,6 +87,7 @@ class DecisionResult:
     rules_choice: str = ""           # what `rules()` would have chosen at this step
     extra: dict = field(default_factory=dict)   # the other structured fields (target_area, missing_evidence, ...)
     cites: list[str] = field(default_factory=list)
+    rejected: int = 0                # model answers the guard refused while producing this decision
 
 
 def _chain() -> list[tuple[str, str]]:
@@ -191,7 +192,7 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
                                                    d.reason.strip(), list(allowed), list(fails), rejected))
                 extra = {k: v for k, v in d.model_dump().items() if k not in (choice_field, "reason", "cites")}
                 return DecisionResult(picked, d.reason.strip(), f"{provider}:{model}", fails, ms, rules_choice,
-                                      extra, list(getattr(d, "cites", []) or []))
+                                      extra, list(getattr(d, "cites", []) or []), rejected)
             except (FutTimeout, TimeoutError):
                 fails.append(f"{provider} timeout")
             except Exception as e:  # noqa: BLE001 - any model failure means: try the next one
@@ -209,4 +210,4 @@ def decide(agent: str, system: str, situation: str, allowed: list[str],
     DECISION_LOG.append(DecisionRecord(agent, "rules", choice, rules_choice, reason, list(allowed), list(fails),
                                        rejected))
     return DecisionResult(choice, reason, "rules", fails, ms, rules_choice, extra,
-                          list(extra.pop("cites", []) or []))
+                          list(extra.pop("cites", []) or []), rejected)

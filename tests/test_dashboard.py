@@ -84,3 +84,42 @@ def test_city_map_falls_back_to_schematic_when_tiles_unreachable(monkeypatch):
     [b for b in at.sidebar.button if "Start" in b.label][0].click().run()
     assert not at.exception
     assert any("unreachable" in c.value for c in at.caption)
+
+
+# ------------------------------------------------------------------ flowchart, decision cards, ledger table
+def test_flow_progress_and_figure():
+    from neer.app import flowchart
+    hist = [("__start__",), ("sentinel",), ("skeptic_gate",), ("detective",), ("orchestrator",), ("approve_plan",)]
+    order, running = flowchart.progress(hist, "open")
+    assert order == ["sentinel", "skeptic_gate", "detective", "orchestrator"] and running == ("approve_plan",)
+    done, end = flowchart.progress(hist[:3] + [("auditor",), ()], "closed")
+    assert end == ("closed",) and done[-1] == "auditor"
+    fig = flowchart.flow_figure(order + ["field_commander", "orchestrator"], running)
+    texts = " ".join(a["text"] for a in fig.layout.annotations)
+    assert "WAITING FOR HUMAN" in texts and "×2" in texts
+    for label in ("acoustic no → re-plan", "NOT FIXED → re-listen", "PARTLY FIXED → Detective"):
+        assert label in texts                                                   # the labelled loop-backs are drawn
+
+
+def test_decision_cards_and_refused_count():
+    from neer.app import components as C
+    ai = dict(agent="Skeptic", text="Dismissed?", kind="alert", provider="groq:openai/gpt-oss-120b (after: groq: 429)",
+              numbers=dict(ai_choice="dismiss", rules_default="open_case", guard="vetoed: dismiss -> open_case",
+                           cited=["t = 19.1 > 4.0"], rejected=2))
+    plan = dict(agent="Orchestrator", text="Plan: acoustic_check in A-211.", kind="decision", provider="rules",
+                numbers=dict(ai_choice="acoustic_check", rules_default="acoustic_check", guard="accepted", cited=[]))
+    aud = dict(agent="Auditor", text="FIXED - proven in 3 h.", kind="verdict", provider=None, numbers={})
+    refused = dict(agent="Field Commander", text="Dig refused: no approver", kind="alert", provider=None, numbers={})
+    page = C.decision_cards([ai, plan, aud, refused])
+    assert "AI: groq" in page and "dismiss → open_case (rule veto)" in page and "t = 19.1 &gt; 4.0" in page
+    assert "fallbacks (1)" in page and "not run yet" in page and "FIXED" in page
+    assert C.ai_stats([ai, plan, aud, refused]) == (1, 0, 1 + 2 + 1)       # veto + 2 refused answers + 1 refused dig
+
+
+def test_ledger_table_has_chips():
+    from neer.app import components as C
+    rows = [dict(when="Day 8", dimension="Mass balance", finding="+19.8 L/s", supports="leak", reliability="high", source="get_zone_flow"),
+            dict(when="", dimension="AI decision", finding="x", supports="vetoed by rule", reliability="m", source="groq"),
+            dict(when="", dimension="Independent audit", finding="FIXED", supports="fixed", reliability="high", source="verify_repair")]
+    page = C.ledger_html(rows)
+    assert "chip-leak" in page and "chip-veto" in page and "chip-fixed" in page and "Source tool" in page

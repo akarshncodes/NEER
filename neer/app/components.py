@@ -75,12 +75,18 @@ def brain_of(entry: dict) -> str | None:
 
 
 def ai_stats(entries: list[dict]) -> tuple[int, int, int]:
-    """(decisions answered by a live model, fallbacks to rules after the chain failed, rule vetoes)."""
+    """(decisions answered by a live model, fallbacks to rules after the chain failed, refused by safety rules).
+
+    "Refused" = AI answers the guard rejected (outside the allowed set / failed a check) + rule vetoes
+    + digs the safety validator refused."""
     ai = fb = veto = 0
     for e in entries:
+        if e.get("agent") == "Field Commander" and str(e.get("text", "")).startswith("Dig refused"):
+            veto += 1
         brain = brain_of(e)
         if brain is None:
             continue
+        veto += int(e["numbers"].get("rejected", 0) or 0)
         if brain != "rules":
             ai += 1
         elif "(after:" in (e.get("provider") or ""):
@@ -112,6 +118,90 @@ def timeline_html(entries: list[dict]) -> str:
     return '<div class="tlwrap">' + "".join(rows) + "</div>"
 
 
+# ------------------------------------------------------------------ decision cards + evidence table
+AI_AGENTS = ("Skeptic", "Detective", "Orchestrator")
+CARD_ORDER = ("Sentinel", "Skeptic", "Detective", "Orchestrator", "Field Commander", "Auditor")
+
+
+def _short(text: str, n: int) -> str:
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _plain_choice(agent: str, text: str) -> str:
+    """A short 'what it did' for the agents that are deterministic (no AI choice is recorded)."""
+    if agent == "Sentinel":
+        return "alarm" if text.startswith("Alarm") else "no alarm"
+    if agent == "Field Commander":
+        return "acoustic check" if "coustic" in text else "dig / repair"
+    if agent == "Auditor":
+        return text.split(" - ")[0].split(" — ")[0][:24]
+    return "—"
+
+
+def decision_cards(timeline: list[dict]) -> str:
+    """The latest decision of each agent: choice, reason, who decided, fallbacks and the evidence cited."""
+    latest: dict[str, dict] = {}
+    for e in timeline:
+        if e["agent"] in AI_AGENTS and "guard" not in (e.get("numbers") or {}):
+            continue                                       # only AI-decision entries count for these agents
+        if e["agent"] in CARD_ORDER:
+            latest[e["agent"]] = e
+    cards = []
+    for agent in CARD_ORDER:
+        colour = AGENT_COLOURS.get(agent, INK2)
+        e = latest.get(agent)
+        head = f'<div class="dch"><span class="ag" style="background:{colour}">{agent}</span>'
+        if e is None:
+            cards.append(f'<div class="dc idle" style="border-left-color:{colour}">{head}</div>'
+                         '<div class="dcc">not run yet</div></div>')
+            continue
+        nums = e.get("numbers") or {}
+        ai = agent in AI_AGENTS
+        brain = brain_of(e) if ai else "rules"
+        guard = str(nums.get("guard", "")) if ai else ""
+        vetoed = guard.startswith("vetoed")
+        choice = (str(nums.get("ai_choice")) if ai else _plain_choice(agent, e["text"]))
+        if vetoed:
+            choice += f" → {nums.get('rules_default')} (rule veto)"
+        badges = f'<span class="bdg {"ai" if brain.startswith("AI") else "rules"}">{html.escape(brain)}</span>'
+        if ai:
+            badges += f'<span class="bdg {"veto" if vetoed else "ok"}">guard: {"vetoed" if vetoed else "accepted"}</span>'
+        after = (e.get("provider") or "")
+        fallbacks = [s.strip() for s in after.split("(after:", 1)[1].rstrip(") ").split(";")] if "(after:" in after else []
+        foot = []
+        if ai:
+            cited = nums.get("cited") or []
+            foot.append("<b>cited:</b> " + (html.escape(_short("; ".join(cited), 120)) if cited else "nothing quoted"))
+        if fallbacks:
+            foot.append(f"<b>fallbacks ({len(fallbacks)}):</b> {html.escape(_short(fallbacks[0], 70))}")
+        cards.append(
+            f'<div class="dc" style="border-left-color:{colour}">{head}{badges}</div>'
+            f'<div class="dcc">{html.escape(_short(choice, 60))}</div>'
+            f'<div class="dcr" title="{html.escape(e["text"])}">{html.escape(e["text"])}</div>'
+            f'<div class="dcf">{"<br>".join(foot)}</div></div>')
+    return '<div class="cards">' + "".join(cards) + "</div>"
+
+
+SUPPORT_CHIPS = {"leak": ("leak", "chip-leak"), "against": ("against", "chip-against"),
+                 "neutral": ("neutral", "chip-neutral"), "fixed": ("fixed ✓", "chip-fixed"),
+                 "vetoed by rule": ("vetoed by rule", "chip-veto")}
+
+
+def ledger_html(rows: list[dict]) -> str:
+    """The evidence ledger as a table: coloured 'supports' chips, reliability, source tool."""
+    body = []
+    for r in rows:
+        label, cls = SUPPORT_CHIPS.get(r.get("supports", ""), (r.get("supports", ""), "chip-neutral"))
+        body.append(f'<tr><td class="w">{html.escape(r.get("when", ""))}</td>'
+                    f'<td class="d">{html.escape(r["dimension"])}</td><td>{html.escape(r["finding"])}</td>'
+                    f'<td><span class="chip {cls}">{html.escape(label)}</span></td>'
+                    f'<td class="rel">{html.escape(r.get("reliability", ""))}</td>'
+                    f'<td class="src">{html.escape(r.get("source", ""))}</td></tr>')
+    head = "".join(f"<th>{h}</th>" for h in ("When", "Dimension", "Finding", "Supports", "Reliability", "Source tool"))
+    return f'<div class="ledgerwrap"><table class="ledger"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
+
+
+
 def evidence_card(case_id: str, tier: str, zone: str, excess: float, dips: list, masked: list, ops: str,
                   areas: list[dict], next_step: str) -> str:
     dip = ", ".join(f"−{d:.2f} m at S{s}" for s, d in dips[:2]) if dips else "—"
@@ -128,7 +218,7 @@ CSS = """
 <style>
 .block-container{padding-top:1.2rem;padding-bottom:1rem;max-width:1500px}
 h1{font-size:1.7rem !important;letter-spacing:-.02em}
-.kpi{border:1px solid #e3e2dc;border-radius:10px;padding:8px 12px;background:#fff;min-height:66px;box-sizing:border-box}
+.kpi{border:1px solid #e3e2dc;border-radius:10px;padding:8px 12px;background:#fff;min-height:80px;box-sizing:border-box}
 .kpi .v{font-size:1.35rem;font-weight:700;color:#1d5aa6;line-height:1.1}
 .kpi .l{font-size:.75rem;color:#52514e}
 .tlwrap{max-height:520px;overflow-y:auto;padding-right:4px}
@@ -147,6 +237,27 @@ h1{font-size:1.7rem !important;letter-spacing:-.02em}
       border-radius:10px;padding:10px 12px;background:#f6f9fe}
 .maplegend{display:flex;gap:8px;align-items:center;font-size:.62rem;color:#3d3c39;white-space:nowrap;overflow:hidden;margin-top:2px}
 .maplegend i{display:inline-block;vertical-align:middle;margin-right:3px}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.dc{border:1px solid #e3e2dc;border-left:5px solid #ccc;border-radius:8px;padding:6px 9px;background:#fff;min-height:132px}
+.dc.idle{background:#faf9f6;color:#8f8e87}
+.dch{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px}
+.dch .ag{color:#fff;border-radius:6px;padding:1px 7px;font-size:.72rem;font-weight:700}
+.dcc{font-weight:700;font-size:.86rem;color:#0b0b0b;margin:1px 0}
+.dcr{font-size:.76rem;line-height:1.3;color:#2d2c2a;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.dcf{font-size:.68rem;color:#52514e;margin-top:3px;line-height:1.3}
+.ledgerwrap{max-height:440px;overflow:auto;border:1px solid #e3e2dc;border-radius:8px}
+table.ledger{border-collapse:collapse;width:100%;font-size:.78rem}
+table.ledger th{position:sticky;top:0;background:#f4f3ee;text-align:left;padding:5px 8px;font-size:.72rem;color:#52514e;border-bottom:1px solid #e3e2dc}
+table.ledger td{padding:5px 8px;border-bottom:1px solid #f0efea;vertical-align:top;color:#0b0b0b}
+table.ledger td.w,table.ledger td.src{white-space:nowrap;color:#52514e}
+table.ledger td.d{font-weight:600;white-space:nowrap}
+table.ledger td.rel{color:#52514e;font-size:.72rem}
+.chip{display:inline-block;border-radius:10px;padding:1px 9px;font-weight:700;font-size:.72rem;white-space:nowrap;border:1px solid}
+.chip-leak{background:#fbe9e9;color:#9b1f1f;border-color:#c73636}
+.chip-against{background:#eaf6ee;color:#14692d;border-color:#1a8a3c}
+.chip-neutral{background:#efeee9;color:#3d3c39;border-color:#a9a8a1}
+.chip-fixed{background:#1a8a3c;color:#fff;border-color:#1a8a3c}
+.chip-veto{background:#fff;color:#9b1f1f;border-color:#c73636;border-style:dashed}
 .badge{display:inline-block;border-radius:12px;padding:2px 10px;font-weight:700;font-size:.8rem;margin-right:6px}
 .approve{border:2px solid #b87800;background:#fbf5e8;border-radius:10px;padding:10px 12px;margin-bottom:8px}
 </style>

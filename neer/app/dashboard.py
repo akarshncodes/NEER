@@ -20,7 +20,7 @@ from langgraph.types import Command
 from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
-from neer.app import geo, opsmap
+from neer.app import flowchart, geo, opsmap
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -131,15 +131,15 @@ if llm == "rules":
     brain_note.info("**Brain: rules only.** Every decision comes from the deterministic policy. No model is called.")
 else:
     brain_note.info(f"**Brain: LLM chain** (Groq → Gemini → rules). Live models answered {_ai} decisions; "
-                    f"{_fb} fell back to rules; {_veto} vetoed by a safety rule. Rules still own physics, "
+                    f"{_fb} fell back to rules; {_veto} refused by safety rules. Rules still own physics, "
                     "thresholds, the safety validator and the Auditor.")
-cols = st.columns(9)
+cols = st.columns([1, 1, 1, 1, 1, 1, 1, 2.1, 1])
 for col, (label, val) in zip(cols, [
         ("Cases", k.get("cases", 0)), ("False alarms avoided", k.get("false_alarms_avoided", 0)),
         ("Acoustic checks", k.get("acoustic_checks", 0)), ("Digs", k.get("digs", 0)),
         ("Wasted digs", k.get("wasted_digs", 0)), ("Repairs proven", k.get("repairs_verified", 0)),
         ("Crew-hours", f"{k.get('crew_hours', 0):.1f}"),
-        ("AI decisions / fallbacks / vetoes", f"{_ai} / {_fb} / {_veto}"),
+        ("AI decisions · fallbacks · refused by safety rules", f"{_ai} · {_fb} · {_veto}"),
         ("Water saved", f"{k.get('litres_saved_per_day', 0) / 1000:,.0f} m³/d")]):
     col.markdown(f'<div class="kpi"><div class="v">{val}</div><div class="l">{label}</div></div>',
                  unsafe_allow_html=True)
@@ -156,6 +156,12 @@ st.markdown(f'<span class="badge" style="background:{colour};color:#fff">{status
             f'<span class="badge" style="background:#eef3fb">Visits {v.get("visits", 0)} · re-plans {v.get("replans", 0)}</span>'
             + (f'<span class="badge" style="background:#e9f5ec">Verdict {v["verdict"]}</span>' if v.get("verdict") else ""),
             unsafe_allow_html=True)
+
+with st.expander("Agent flow and latest decisions", expanded=True):
+    seq = [s.next for s in reversed(list(ss.graph.get_state_history(ss.cfg)))] if "graph" in ss else []
+    done_order, running = flowchart.progress(seq, status)
+    st.plotly_chart(flowchart.flow_figure(done_order, running), width="stretch", config={"displayModeBar": False})
+    st.markdown(C.decision_cards(v.get("timeline", [])), unsafe_allow_html=True)
 
 left, mid, right = st.columns([1.55, 0.9, 1.0])
 
@@ -238,10 +244,9 @@ with right:
     with tab3:
         led = v.get("ledger", [])
         if led:
-            ldf = pd.DataFrame(led)[["when", "dimension", "finding", "supports", "reliability", "source"]]
-            ldf["supports"] = ldf["supports"].map({"leak": "🔴 leak", "against": "🟢 against", "neutral": "⚪ neutral",
-                                                   "fixed": "✅ fixed"}).fillna(ldf["supports"])
-            st.dataframe(ldf, hide_index=True, width="stretch", height=420)
+            dims = sorted({r["dimension"] for r in led})
+            chosen = st.multiselect("Filter by dimension", dims, default=dims, key="ledger_dims")
+            st.markdown(C.ledger_html([r for r in led if r["dimension"] in chosen]), unsafe_allow_html=True)
         else:
             st.caption("No evidence yet.")
         bi = w.baseline.info()

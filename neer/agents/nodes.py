@@ -42,7 +42,8 @@ def AI(agent: str, d: DecisionResult, guard: str = "accepted", when: str = "") -
             f"{agent} chose '{d.choice}'; rules default '{d.rules_choice}'; guard: {guard}; cited: {cited}",
             "vetoed by rule" if vetoed else "neutral", "model judgment, checked by a rule guard"
             if d.provider != "rules" else "deterministic rules", d.provider, when)
-    return dict(ai_choice=d.choice, rules_default=d.rules_choice, guard=guard, cited=list(d.cites)), row
+    return dict(ai_choice=d.choice, rules_default=d.rules_choice, guard=guard, cited=list(d.cites),
+                rejected=d.rejected), row
 
 
 def _provider_note(d) -> str:
