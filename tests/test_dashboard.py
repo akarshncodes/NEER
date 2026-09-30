@@ -237,3 +237,25 @@ def test_report_from_a_real_case_and_board_run_all():
     by_name = {name: block for name, block in zip(board.COLUMNS, cols)}
     assert by_name["Watch"].count("kcard") == 1 and by_name["Closed"].count("kcard") >= 2
     assert all(any(f"{sc}" in c for c in cols) for sc in board.DEMO_SCENARIOS)
+
+
+# ------------------------------------------------------------------ 3D city view (no browser)
+def test_city3d_deck_builds_for_a_case():
+    import json
+    from neer.app import city3d
+    layers = _full_layers()
+    deck = city3d.build_deck(layers, city3d.Camera(pitch=50, bearing=-30), dark=False)
+    spec = json.loads(deck.to_json())
+    kinds = [lay["@@type"] for lay in spec["layers"]]
+    for lay in spec["layers"]:                  # pydeck turns any string prop into an expression: only accessors may be one
+        assert all(k.startswith("get") for k, val in lay.items() if isinstance(val, str) and val.startswith("@@="))
+    assert {"PathLayer", "ColumnLayer", "ScatterplotLayer", "PolygonLayer", "TextLayer"} <= set(kinds)
+    assert spec["initialViewState"]["pitch"] == 50 and spec["initialViewState"]["bearing"] == -30
+    cols = next(lay for lay in spec["layers"] if lay["@@type"] == "ColumnLayer")["data"]
+    top = max(cols, key=lambda r: r["h"])
+    assert top["title"].startswith("Junction") and "Relative likelihood" in top["line1"] and "pressure drop" in top["line2"].lower()
+    assert top["h"] > 3 * min(r["h"] for r in cols)                                  # suspected junctions stand out
+    flown = city3d.build_deck(layers, city3d.Camera(fly_to=True), dark=True)
+    assert flown.initial_view_state.pitch == 60 and flown.initial_view_state.zoom > deck.initial_view_state.zoom
+    empty = city3d.build_deck(basemap=False)                                         # before any case: no crash
+    assert empty.map_style is None

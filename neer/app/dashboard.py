@@ -21,7 +21,9 @@ from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
 from neer.app import theme
-from neer.app import board, dbview, flowchart, geo, opsmap, sandbox, wow
+from dataclasses import replace
+
+from neer.app import board, city3d, dbview, flowchart, geo, opsmap, sandbox, wow
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -92,38 +94,64 @@ def record_current() -> None:
         snap.values, world.kpi if world else {}, bool(ss.get("pending")), snap.next, ss.get("seed_used"))
 
 
+QUICK_DEMOS = [("Hidden leak", "leak_20", ":material/water_drop:", "A hidden 20 L/s leak: the full loop from alarm to proven repair."),
+               ("Pump trip look-alike", "pump_trip", ":material/bolt:", "A logged pump trip that looks like a leak: the Skeptic should dismiss it."),
+               ("Wrong repair", "wrong_repair", ":material/build:", "The crew fixes the wrong pipe first: the Auditor catches it and the case re-plans.")]
+
+
+def quick_start(name: str) -> None:
+    """Button callback (runs before the widgets are drawn): pick the scenario and ask for a start."""
+    ss.scen_select = name
+    ss.quick_go = True
+
+
 # ------------------------------------------------------------------ sidebar
 with st.sidebar:
     st.markdown('<div class="brand">NEER</div><div class="brand-sub">Leak investigation, verified</div>', unsafe_allow_html=True)
+    st.markdown("#### Quick start")
+    for label, name, icon, tip in QUICK_DEMOS:
+        st.button(f"Demo: {label.lower()}", key=f"qs_{name}", width="stretch", icon=icon, help=tip,
+                  on_click=quick_start, args=(name,))
     st.markdown("#### Case")
     names = list(SCENARIOS)
-    scen = st.selectbox("Scenario", names, index=names.index("leak_20"),
-                        format_func=lambda n: f"{n}: {SCENARIOS[n].title}")
-    seed = st.number_input("Seed", value=7, step=1)
+    ss.setdefault("scen_select", "leak_20")
+    scen = st.selectbox("Scenario", names, key="scen_select", format_func=lambda n: f"{n}: {SCENARIOS[n].title}",
+                        help="The simulated day the agents investigate. Some are real leaks, some are look-alikes.")
+    seed = st.number_input("Seed", value=7, step=1, help="Same seed + same scenario = the exact same case every time.")
     st.markdown("#### Reasoning and tools")
     llm = st.radio("Reasoning", ["rules", "chain"], horizontal=True,
-                   format_func=lambda x: "Rules only" if x == "rules" else "LLM chain")
+                   format_func=lambda x: "Rules only" if x == "rules" else "LLM chain",
+                   help="Rules only: deterministic policy, no model called. LLM chain: Groq → Gemini → rules; "
+                        "safety rules can still refuse an AI choice.")
     if llm == "chain":
         keys = {"Groq": bool(os.getenv("GROQ_API_KEY")), "Gemini": bool(os.getenv("GOOGLE_API_KEY")),
                 "Ollama": os.getenv("NEER_USE_OLLAMA") == "1"}
         st.caption("Chain: " + " → ".join(f"{k} ({'key set' if v else 'off'})" for k, v in keys.items()) + " → rules")
     brain_note = st.empty()        # filled after the buttons have run, so its counts are current
     map_mode = st.radio("Map", ["city", "schematic"], horizontal=True,
-                        format_func=lambda x: "City map" if x == "city" else "Schematic")
+                        format_func=lambda x: "City map" if x == "city" else "Schematic",
+                        help="City map: the network on a Madurai street map (needs internet). Schematic: plain drawing.")
     mode = st.radio("Tools via", ["direct", "mcp"], horizontal=True,
-                    format_func=lambda x: "In-process" if x == "direct" else "4 MCP servers")
+                    format_func=lambda x: "In-process" if x == "direct" else "4 MCP servers",
+                    help="How agents call their 19 tools: direct Python calls, or through 4 MCP servers (falls back to direct).")
     st.markdown("#### Approval")
-    ss.approver = st.text_input("Approver name", value=ss.get("approver", "Supervisor"))
+    ss.approver = st.text_input("Approver name", value=ss.get("approver", "Supervisor"),
+                                help="Recorded on every approval in the audit trail.")
     ss.role = st.selectbox("Approver role (access control)", ["supervisor", "engineer", "field crew", "viewer"],
                            help="Only supervisor / engineer may approve a dig - the safety validator refuses others.")
     st.markdown("#### Run")
-    ss.speed = st.slider("Animation (s per step)", 0.0, 1.5, 0.35, 0.05)
+    ss.speed = st.slider("Animation (s per step)", 0.0, 1.5, 0.35, 0.05,
+                         help="Pause between agent steps so you can read them. 0 = instant.")
     c1, c2 = st.columns(2)
-    if c1.button("Start case", type="primary", width="stretch"):
+    if c1.button("Start case", type="primary", width="stretch", help="Open a new case for the chosen scenario and seed."):
         start(scen, int(seed), mode, llm)
-    if c2.button("Autopilot", width="stretch", disabled=not ss.get("pending"), icon=":material/fast_forward:"):
+    if ss.pop("quick_go", False):                                                     # a Quick start button was pressed
+        start(scen, int(seed), mode, llm)
+    if c2.button("Autopilot", width="stretch", disabled=not ss.get("pending"), icon=":material/fast_forward:",
+                 help="Approve every remaining decision automatically (as the approver above)."):
         autopilot()
     st.markdown("#### Chaos switches")
+    st.caption("Break things on purpose and watch the agents recover.")
     if st.button("SCADA times out (x2)", width="stretch", icon=":material/wifi_off:"):
         chaos.set_toggle("scada_timeout", 2)
     if st.button("LLM returns broken JSON (x2)", width="stretch", icon=":material/data_object:"):
@@ -136,7 +164,8 @@ with st.sidebar:
         chaos.reset()
     active = {k: v for k, v in chaos.get().items() if v}
     st.caption("Active: " + (", ".join(f"{k}={v}" for k, v in active.items()) if active else "none"))
-    reveal = st.toggle("Reveal true leak (judges only)", value=False)
+    reveal = st.toggle("Reveal true leak (judges only)", value=False,
+                       help="Show where the simulated leak really is, once the case is closed. The agents never see this.")
 
 # ------------------------------------------------------------------ header + KPIs
 w = current_world()
@@ -183,6 +212,26 @@ def run_demo_suite() -> None:
     st.rerun()                                                                       # the other tabs read fresh state
 
 
+def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool) -> None:
+    """The 3D city view. It uses the 2D map's layers, but keeps the Detective's likelihood columns after closing,
+    so the story (where it looked, where it dug) stays visible next to the green repaired ring."""
+    if case is not None and case.posterior is not None and located:
+        areas = case.areas
+        layers = replace(layers, posterior=case.posterior,
+                         top_areas=[(a["area_id"], areas[a["area_id"]]) for a in v.get("areas", []) if a["area_id"] in areas])
+    target = city3d.focus_area(layers)
+    c1, c2, c3 = st.columns([1.6, 1, 1], vertical_alignment="center")
+    fly = c1.toggle("Fly to suspected area", key="fly3d", disabled=target is None,
+                    help="Centre and zoom on the area being searched (or the top candidate / repaired area).")
+    pitch = c2.slider("Tilt", 0, 75, 55, key="tilt3d", help="Camera tilt in degrees (0 = straight down).")
+    bearing = c3.slider("Rotate", -180, 180, -25, 5, key="bearing3d", help="Compass rotation of the camera in degrees.")
+    deck = city3d.build_deck(layers, city3d.Camera(pitch=pitch, bearing=bearing, fly_to=fly), width_px=520, height_px=600,
+                             basemap=os.getenv("NEER_3D_BASEMAP", "1") == "1")
+    st.pydeck_chart(deck, width="stretch", height=600)
+    st.caption(city3d.CAPTION + (f" Focus: {target[0]}." if fly and target else ""))
+    st.markdown(city3d.legend_html(), unsafe_allow_html=True)
+
+
 tab_room, tab_board, tab_sandbox, tab_db = st.tabs(["Control Room", "Operations board", "Twin sandbox (what-if)",
                                                    "Database & API"])
 with tab_db:
@@ -192,7 +241,18 @@ with tab_sandbox:
 with tab_board:
     board.render_tab(run_demo_suite, v.get("case_id"))
 
+HOW_TO = """
+1. **Pick a case.** Press one of the **Quick start** demos in the sidebar, or choose a scenario and press **Start case**.
+2. **Watch the agents work.** The Sentinel raises the alarm, the Skeptic questions it, the Detective narrows down the area.
+3. **Make the calls.** When a *Decision needed* box appears on the right, press **Approve** or **Reject**
+   (or **Autopilot** to approve everything).
+4. **See the proof.** After the repair, the Auditor measures the zone again and fills the proof meter: FIXED, PARTLY FIXED or NOT FIXED.
+5. **Explore.** Switch the map to **3D city view**, read the evidence ledger, try the **Twin sandbox** or the chaos switches.
+"""
+
 with tab_room:
+    with st.expander("How to use the Control Room", icon=":material/help:", expanded=False):
+        st.markdown(HOW_TO)
     if not w or not v:
         st.info("Choose a scenario in the sidebar and press **Start case**.")
         st.stop()
@@ -232,18 +292,23 @@ with tab_room:
             case_zone=v.get("zone") if located else None,
             sensor_drop={s: float(d) for s, d in zip(net.sensors, drop)}, masked=list(case.masked) if case else [],
             crew=bool(field_work and cur_id))
-        if eff_mode != map_mode:
-            st.caption("Basemap tiles unreachable (offline): showing the schematic map.")
-        b1, b2, _ = st.columns([1, 1, 2.2])
-        if b1.button("Full city", width="stretch"):
-            ss.map_view = "full"
-        if b2.button("Case zone", width="stretch", disabled=not located):
-            ss.map_view = "zone"
-        st.plotly_chart(opsmap.build_map(eff_mode, layers, ss.get("map_view", "zone"),
-                                         uirevision=f"{v.get('case_id')}-{ss.get('map_view', 'zone')}-{eff_mode}-{located}",
-                                         height=600, width_px=560),
-                        width="stretch", config={"displayModeBar": False})
-        st.markdown(opsmap.legend_html(), unsafe_allow_html=True)
+        dim = st.segmented_control("Map view", ["2D ops map", "3D city view"], default="2D ops map", key="map_dim",
+                                   label_visibility="collapsed") or "2D ops map"
+        if dim == "3D city view":
+            render_city3d(layers, case, v, located)
+        else:
+            if eff_mode != map_mode:
+                st.caption("Basemap tiles unreachable (offline): showing the schematic map.")
+            b1, b2, _ = st.columns([1, 1, 2.2])
+            if b1.button("Full city", width="stretch"):
+                ss.map_view = "full"
+            if b2.button("Case zone", width="stretch", disabled=not located):
+                ss.map_view = "zone"
+            st.plotly_chart(opsmap.build_map(eff_mode, layers, ss.get("map_view", "zone"),
+                                             uirevision=f"{v.get('case_id')}-{ss.get('map_view', 'zone')}-{eff_mode}-{located}",
+                                             height=600, width_px=560),
+                            width="stretch", config={"displayModeBar": False})
+            st.markdown(opsmap.legend_html(), unsafe_allow_html=True)
 
     # ------------------------------------------------------------------ middle: water bill, card, meter
     with mid:
