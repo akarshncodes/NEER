@@ -153,7 +153,7 @@ We built it in **stages**. After each stage the tests had to pass, and we saved 
   - two_leaks, wrong_repair
   - four chaos cases
   Each has an expected ending, so the evaluation can score it.
-- **Dataset export.** `scripts/export_dataset.py` writes CSV files you can open in Excel.
+- **Demo dataset.** `scripts/build_dataset.py` writes `dataset/`: CSV files you can open in Excel (network, 37-day live city, 16 scenarios).
 
 ---
 

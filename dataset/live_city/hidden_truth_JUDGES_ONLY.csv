@@ -1,0 +1,11 @@
+night,day,hidden_event
+2,8,"leak: node 275, lps 20.0"
+4,10,"pump trip: pump 10, start_h 8, end_h 13"
+6,12,"planned work: node 159, lps 30.0, h0 9, h1 15"
+8,14,"leak: node 121, lps 12.0"
+10,16,"fire draw: node 163, lps 40.0, h0 14, h1 16"
+12,18,"stuck sensor: sensor 241, from_h 6"
+15,21,The next repair will be done on the wrong pipe
+15,21,"leak: node 239, lps 40.0"
+18,24,valve closure: pipe 245
+21,27,"leak: node 120, lps 15.0"

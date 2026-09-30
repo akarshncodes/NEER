@@ -23,7 +23,7 @@ from neer.app import components as C
 from neer.app import theme
 from dataclasses import replace
 
-from neer.app import board, city3d, dbview, flowchart, geo, nightwatch, opsmap, sandbox, wow
+from neer.app import board, city3d, datasetview, dbview, flowchart, geo, nightwatch, opsmap, sandbox, wow
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -233,6 +233,32 @@ def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool, blueprint
     st.markdown(city3d.legend_html(), unsafe_allow_html=True)
 
 
+def render_ask(v: dict, brain: str) -> None:
+    """Ask NEER: questions about this case, answered by the AI chain from the case record only (rules fallback)."""
+    from neer.agents.explain import QUICK, timed_ask
+    hist = ss.setdefault("ask_hist", {}).setdefault(v.get("case_id"), [])
+    st.caption("Ask anything about this case. The AI (" + ("Groq → Gemini → rules" if brain == "chain" else
+               "rules only - switch Reasoning to 'LLM chain' for the live AI") + ") answers only from this case's "
+               "record: agent messages, evidence ledger, verdict. It never invents numbers.")
+    asked = None
+    for i in range(0, len(QUICK), 2):                      # two quick questions per row, so labels stay readable
+        cols = st.columns(2)
+        for c, q in zip(cols, QUICK[i:i + 2]):
+            if c.button(q, key=f"ask_{q}_{v.get('case_id')}", width="stretch"):
+                asked = q
+    typed = st.chat_input("Ask NEER about this case…", key=f"ask_in_{v.get('case_id')}")
+    asked = typed or asked
+    if asked:
+        with st.spinner("NEER is thinking…"):
+            hist.append(timed_ask(asked, v, brain))
+    for h in reversed(hist[-6:]):
+        with st.chat_message("user"):
+            st.write(h["q"])
+        with st.chat_message("assistant", avatar=":material/water_drop:"):
+            st.write(h["a"])
+            st.caption(f"answered by {h['who']} · {h['ms']} ms")
+
+
 def open_live_case(nw, case) -> None:
     """Show a case the night watch opened in the Control Room (same world, same graph)."""
     W.set_world(nw.world)
@@ -243,8 +269,10 @@ def open_live_case(nw, case) -> None:
     st.rerun()
 
 
-tab_night, tab_room, tab_board, tab_sandbox, tab_db = st.tabs(["Night watch (autonomous)", "Control Room",
-                                                              "Operations board", "Twin sandbox (what-if)", "Database & API"])
+tab_night, tab_room, tab_board, tab_sandbox, tab_data, tab_db = st.tabs(
+    ["Night watch (autonomous)", "Control Room", "Operations board", "Twin sandbox (what-if)", "Dataset", "Database & API"])
+with tab_data:
+    datasetview.render(reveal)
 with tab_night:
     nightwatch.render(ss.get("approver", "Supervisor"), ss.get("role", "supervisor"), int(seed), llm, reveal,
                       open_live_case)
@@ -361,7 +389,10 @@ with tab_room:
             if b.button("Reject", width="stretch", icon=":material/close:"):
                 answer(False)
                 st.rerun()
-        tab_chat, tab1, tab3, tab2 = st.tabs(["Team chat", "Agent timeline", "Evidence ledger", "Tool trace"])
+        tab_ask, tab_chat, tab1, tab3, tab2 = st.tabs(["Ask NEER (AI)", "Team chat", "Agent timeline", "Evidence ledger",
+                                                       "Tool trace"])
+        with tab_ask:
+            render_ask(v, llm)
         with tab_chat:
             st.markdown(wow.chat_html(v.get("timeline", [])), unsafe_allow_html=True)
         with tab3:

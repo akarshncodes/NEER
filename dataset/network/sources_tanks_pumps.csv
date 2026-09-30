@@ -1,0 +1,8 @@
+name,type,x,y
+River,reservoir (source),24.15,31.06
+Lake,reservoir (source),8.0,27.53
+1,tank,27.46,9.84
+2,tank,32.99,3.45
+3,tank,29.41,27.27
+10,pump,,
+335,pump,,

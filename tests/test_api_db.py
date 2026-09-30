@@ -50,3 +50,24 @@ def test_rest_api_end_to_end():
     assert api.get("/api/cases/NOPE").status_code == 404
     assert api.post("/api/cases", json={"scenario": "nope"}).status_code == 404
     assert api.post("/api/cases", json={"scenario": "leak_20", "approver_role": "admin"}).status_code == 422
+
+
+def test_dataset_api_and_ask_neer():
+    api = TestClient(app)
+    man = api.get("/api/dataset").json()
+    assert any(f["file"] == "live_city/night_scan_0200_0400.csv" for f in man["files"])
+    rows = api.get("/api/dataset/network/junctions.csv?limit=5").json()
+    assert rows["total_rows"] == 92 and len(rows["rows"]) == 5
+    assert api.get("/api/dataset/../pyproject.toml").status_code == 404          # no escaping the dataset folder
+    cid = api.post("/api/cases", json={"scenario": "leak_20", "seed": 7}).json()["case_id"]
+    a = api.post(f"/api/cases/{cid}/ask", json={"question": "Is the leak really fixed?", "brain": "rules"}).json()
+    assert "999:1" in a["a"] and a["who"].startswith("rules")
+
+
+def test_ask_neer_uses_only_the_case_record():
+    from neer.agents.explain import ask, case_record
+    s = run_case("leak_20", 7)
+    v = s.model_dump()
+    assert "Z5" in case_record(v)
+    ans, who = ask("Why this search area?", v, brain="rules")
+    assert who.startswith("rules") and v["areas"][0]["area_id"] in ans

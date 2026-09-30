@@ -11,6 +11,9 @@ Endpoints (all JSON; interactive documentation is generated automatically at /do
     GET  /api/cases/{case_id}    one case: timeline, evidence ledger, approvals, work orders
     GET  /api/kpi                totals across all stored cases
     GET  /api/trace              the latest tool calls (the SQLite trace)
+    GET  /api/dataset            the demo dataset: every CSV and its row count
+    GET  /api/dataset/{file}     rows of one dataset CSV as JSON
+    POST /api/cases/{id}/ask     ask the AI about a stored case (answers only from the case record)
 
 Every request is validated by Pydantic (a bad body returns HTTP 422 with the reason). Cases run one at a time
 (a lock), because the simulated city is one shared object. Human approvals: a POST gives the approver's
@@ -113,3 +116,51 @@ def kpi() -> dict:
 @app.get("/api/trace")
 def trace(limit: int = 50) -> list[dict]:
     return read_trace(min(max(limit, 1), 500))
+
+
+# ------------------------------------------------------------------ the demo dataset (dataset/, built by scripts/build_dataset.py)
+DATASET = config.ROOT / "dataset"
+
+
+@app.get("/api/dataset")
+def dataset_manifest() -> dict:
+    """Every CSV in the demo dataset with its row count, and where the data comes from."""
+    import csv
+    man = DATASET / "MANIFEST.csv"
+    if not man.exists():
+        raise HTTPException(404, "dataset not built; run scripts/build_dataset.py")
+    with open(man) as f:
+        files = [dict(file=r["file"], rows=int(r["rows"])) for r in csv.DictReader(f)]
+    return {"source": "EPA Net3 network (public); hourly readings simulated with WNTR/EPANET; events injected",
+            "seed": 7, "files": files}
+
+
+@app.get("/api/dataset/{path:path}")
+def dataset_file(path: str, limit: int = 100, offset: int = 0) -> dict:
+    """Rows of one dataset CSV as JSON (only files inside dataset/, only .csv)."""
+    import csv
+    target = (DATASET / path).resolve()
+    if DATASET.resolve() not in target.parents or target.suffix != ".csv" or not target.exists():
+        raise HTTPException(404, f"no dataset file {path!r}; see GET /api/dataset")
+    limit = min(max(limit, 1), 2000)
+    with open(target) as f:
+        rows = list(csv.DictReader(f))
+    return {"file": path, "total_rows": len(rows), "offset": offset, "rows": rows[offset:offset + limit]}
+
+
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=2, max_length=300)
+    brain: Literal["rules", "chain"] = "chain"
+
+
+@app.post("/api/cases/{case_id}/ask")
+def ask_case(case_id: str, req: AskRequest) -> dict:
+    """Ask NEER a question about a stored case; answered by the AI chain from the case record (rules fallback)."""
+    from neer.agents.explain import timed_ask
+    c = store.get_case(case_id)
+    if c is None:
+        raise HTTPException(404, f"case {case_id} not found")
+    v = {**c, "leak_size_lps": c.get("leak_lps"), "ledger": [dict(dimension=r["dimension"], finding=r["finding"],
+         supports=r["supports"], source=r["source"]) for r in c["ledger"]],
+         "timeline": [dict(agent=t["agent"], text=t["text"]) for t in c["timeline"]], "areas": []}
+    return timed_ask(req.question, v, req.brain)

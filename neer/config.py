@@ -1,6 +1,6 @@
 """All NEER constants in one place.
 
-Every number here was tested earlier (see reference/ and docs/SPEC.md).
+Every number here was tested (see docs/SPEC.md and docs/ENGINE_REPORT.txt).
 Change a value here, never inside the code that uses it.
 """
 from __future__ import annotations

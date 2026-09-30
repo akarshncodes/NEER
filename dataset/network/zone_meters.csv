@@ -1,0 +1,16 @@
+meter_on_link,from_node,to_node,from_zone,to_zone
+20,3,20,source/storage,Z3
+40,1,40,source/storage,Z1
+50,2,50,source/storage,Z5
+60,River,60,source/storage,Z3
+116,113,193,Z2,Z4
+121,120,117,Z3,Z2
+173,119,157,Z3,Z4
+183,265,169,Z4,Z1
+199,179,183,Z1,Z4
+204,184,205,Z4,Z1
+225,111,197,Z2,Z4
+238,207,206,Z1,Z5
+297,120,257,Z3,Z2
+313,269,189,Z1,Z4
+10,Lake,10,source/storage,Z2

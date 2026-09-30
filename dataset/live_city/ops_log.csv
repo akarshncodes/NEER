@@ -1,0 +1,3 @@
+day,op_id,kind,detail
+10,OP-10-0,pump_trip,Pump 10 off 08:00-13:00
+24,OP-24-0,valve_closure,Valve on pipe 245 closed
