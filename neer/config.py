@@ -89,6 +89,8 @@ SOFT_NOT_FIXED = 0.50           # repaired area when the Auditor says NOT FIXED 
 ACOUSTIC_SENSITIVITY = 0.85
 ACOUSTIC_FPR = 0.05
 MAX_REPLANS = 6
+MIN_ACTIONABLE_LPS = 6.0        # smaller signals: wait for more days of data before sending anyone
+MAX_WAIT_DAYS = 2
 MAX_VISITS = 8
 
 # auditor (sequential probability ratio test)

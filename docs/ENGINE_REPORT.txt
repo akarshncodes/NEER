@@ -1,0 +1,39 @@
+                            NEER physics engine - simulated Net3, 40 cases per row                            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Test                                                ┃                                               Result ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ False alarms on leak-free days                      │                                                   0% │
+│ Detected on day 1 (10 L/s)                          │                                                  72% │
+│ Detected on day 1 (20 L/s)                          │                                                  92% │
+│ Detected on day 1 (40 L/s)                          │                                                  98% │
+│ Skeptic correct: pump_trip                          │    98%  {'operation': 38, 'leak': 1, 'temporary': 1} │
+│ Skeptic correct: valve_closure                      │              100%  {'no_alarm': 27, 'operation': 13} │
+│ Skeptic correct: planned_work                       │           100%  {'planned_work': 21, 'no_alarm': 19} │
+│ Skeptic correct: fire_draw                          │    92%  {'temporary': 10, 'leak': 3, 'no_alarm': 27} │
+│ Skeptic correct: stuck_sensor                       │ 98%  {'sensor_fault': 11, 'no_alarm': 28, 'leak': 1} │
+│ Skeptic correct: sensor_offset                      │ 92%  {'no_alarm': 21, 'leak': 3, 'sensor_fault': 16} │
+│ Skeptic correct: leak                               │     92%  {'leak': 37, 'temporary': 2, 'no_alarm': 1} │
+│ Skeptic correct: leak_plus_pump_trip                │                    98%  {'leak': 39, 'operation': 1} │
+│ Search 10 L/s: zone / found<=3 visits / wasted digs │                                     98% / 78% / 0.05 │
+│ Search 20 L/s: zone / found<=3 visits / wasted digs │                                     95% / 82% / 0.07 │
+│ Search 40 L/s: zone / found<=3 visits / wasted digs │                                     98% / 82% / 0.10 │
+│ Auditor 10 L/s fixed: correct / median h            │              75% / 23.5 h (never wrongly FIXED 100%) │
+│ Auditor 10 L/s not_fixed: correct / median h        │              80% / 18.0 h (never wrongly FIXED 100%) │
+│ Auditor 10 L/s partly: correct / median h           │               78% / 11.0 h (never wrongly FIXED 95%) │
+│ Auditor 20 L/s fixed: correct / median h            │              88% / 10.0 h (never wrongly FIXED 100%) │
+│ Auditor 20 L/s not_fixed: correct / median h        │               88% / 6.0 h (never wrongly FIXED 100%) │
+│ Auditor 20 L/s partly: correct / median h           │                80% / 4.0 h (never wrongly FIXED 95%) │
+│ Auditor 40 L/s fixed: correct / median h            │               92% / 5.0 h (never wrongly FIXED 100%) │
+│ Auditor 40 L/s not_fixed: correct / median h        │               92% / 2.0 h (never wrongly FIXED 100%) │
+│ Auditor 40 L/s partly: correct / median h           │                85% / 1.5 h (never wrongly FIXED 95%) │
+└─────────────────────────────────────────────────────┴──────────────────────────────────────────────────────┘
+took 278 s
+
+Notes
+- Simulated EPA Net3 city with harsh noise; seeded; each row = 40 fresh cities.
+- "Skeptic correct" = the final leak / not-leak call is right. no_alarm means the event never even raised an alarm.
+- Search = locate -> acoustic check (85 % hit, 5 % false) -> dig only on "yes" -> soft elimination.
+- Auditor: when not "correct" the verdict is almost always INCONCLUSIVE (keep watching), not wrong.
+  In the "partly" rows the ~5 % FIXED verdicts are cases where the second simulated leak sits at a
+  low-pressure node and leaks almost nothing (measured remaining excess ~0 L/s) - physically correct.
+- Agent-level (end-to-end) results: docs/EVAL.md.

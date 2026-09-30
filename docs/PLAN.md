@@ -1,27 +1,39 @@
-# NEER build plan: 7 stages
+# NEER build plan: status
 
-The work goes one stage at a time. After each stage the tests must pass and the code is committed. Then Cowork reviews it before the next prompt goes out.
+| Stage | What | Status | Tests |
+|---|---|---|---|
+| 0 · Foundation | uv project, config, Pydantic contracts, logger | ✅ | – |
+| 1 · Simulated city | Net3, 5 DMAs, 15 meters, bulk meters, noise, events, scenarios, fingerprint library | ✅ | test_sim.py (12) |
+| 2 · Physics engine | baseline, 3 witnesses, Skeptic checks (multi-day), localisation, soft search, acoustic, 3-hypothesis sequential Auditor | ✅ | test_engine.py (15) |
+| 3 · Tools + MCP | 19 tools, resilience (validate/timeout/retry/breaker/trace), chaos, 4 FastMCP servers | ✅ | test_tools.py (10) |
+| 4 · Agents | 6 LangGraph agents, human interrupts, LLM chain → rules, MCP toolbox → direct fallback, wait-for-data, budget per round | ✅ | test_agents.py (13) |
+| 5 · Dashboard | Streamlit Control Room: map, water bill, evidence card, Auditor meter, approvals, timeline, trace, chaos | ✅ | test_dashboard.py (1) |
+| 6 · Evaluation | 16 scenarios × 5 held-out seeds → docs/EVAL.md; engine benchmark → docs/ENGINE_REPORT.txt; README; uv.lock | ✅ | – |
 
-| Stage | What gets built | Time | Done when | Review |
-|---|---|---|---|---|
-| **0 · Foundation** | uv project, folder layout, `schemas.py` (all Pydantic contracts), config, logging, pytest setup | 20 min | `uv run pytest` passes; schemas import | |
-| **1 · Simulated city** | Net3 + 5 zones + 15 meters + bulk meters + noise + events + city clock + cached fingerprint library | 1 h | Leak shows in the right zone's inflow; seeded runs repeat | |
-| **2 · Physics engine** | Baseline, 3 witnesses, Skeptic checks, localisation, search areas, acoustic sim, sequential Auditor | 1.5 h | Statistical tests pass (zone accuracy, pump-trip dismissal, auditor accuracy) | |
-| **3 · Tools + MCP** | 19 typed tools, resilience wrapper (validate, timeout, retry, circuit breaker, trace), chaos toggles, 4 FastMCP servers | 1.5 h | MCP client lists 19 tools; chaos tests pass | **10 PM review**: show stages 0–3 plus an MCP tool demo from the CLI |
-| **4 · Agents** | Case state, LLM router with fallback to `rules`, 6 LangGraph agents, interrupts, checkpointing, CLI runner | 2.5 h | 4 scenarios end correctly with `rules` and with chaos | |
-| **5 · Dashboard** | Streamlit Control Room: map, water bill, auditor meter, evidence card, approve buttons, trace, chaos panel | 2 h | Full demo runs in the browser | **3 AM review**: integrated prototype |
-| **6 · Eval + polish** | 20-scenario eval → `docs/EVAL.md` ("passed N/20"), README, rehearsal, backup video | 1.5 h | Eval report generated; demo runs 3× in a row | **7:30 AM final** |
+## What each review should show
+- **10 PM (progress):**
+  - `uv run pytest -q` passing
+  - the CLI case run in `--mode mcp`
+  - MCP servers listing 19 tools
+  - the engine benchmark table
+  - a list of "challenges faced" (see below)
+- **3 AM (integrated):** the Control Room running `leak_20`, `pump_trip`, `wrong_repair` and `two_leaks`, and chaos buttons pressed live.
+- **7:30 AM (final):** the 7-minute pitch, the live demo (docs/DEMO.md), and the eval score (docs/EVAL.md).
 
-## How we work together
-1. Paste the stage prompt from `prompts/` into Claude Code, opened in the `NEER/` folder.
-2. Claude Code plans, builds, tests and commits.
-3. Tell Cowork "Stage N done". Cowork runs the tests, reads the code, and sends fixes and the next prompt.
-4. Keep the tested reference code in `reference/` for algorithms only; it is never imported.
+## Challenges faced and how we solved them (for the 10 PM review)
+1. **Our first accuracy claim was on unrealistically big leaks (60–170 L/s).** We re-tested on 5–40 L/s and redesigned: zone meters, bulk meters, quiet-hour weighting and size-aware fingerprints.
+2. **Parallel EPANET runs overwrote each other's temp files and crashed.** Fixed with unique temp file names per run.
+3. **MCP stdio got corrupted by log lines on stdout.** All logs now go to stderr.
+4. **Lists and errors over MCP were ambiguous.** Every tool now returns one JSON text, and a ToolError is readable by the agent.
+5. **A wrong repair made the agents search everywhere else.** The Orchestrator now re-listens at the repair site first.
+6. **After a partial fix, old data pointed at the repaired leak.** The Detective now uses post-repair data only.
+7. **Small leaks and false alarms on one day of data.** The Skeptic now waits for another day of data before sending anyone for signals under 6 L/s.
+8. **Closing a case wrongly is the worst error.** FIXED now needs 999:1 evidence and at least 3 hours of data.
 
 ## Team roles
-| Member | Stages owned | Explains at review |
+| Member | Owns | Explains |
 |---|---|---|
-| 1 | Stage 1 simulator, scenarios | the city and events |
-| 2 | Stages 2–3 engine and MCP tools | the physics and the 19 tools |
-| 3 | Stage 4 agents | the LangGraph graph, the Skeptic and the fallback |
-| 4 | Stages 5–6 dashboard and eval | the UI, eval score and pitch |
+| 1 | `neer/sim` | the city, zones, meters, events, scenarios |
+| 2 | `neer/engine`, `neer/tools`, `neer/mcp_servers` | the physics, the 19 tools, resilience, chaos |
+| 3 | `neer/agents` | the graph, the 6 agents, the Skeptic, the LLM fallback, human gates |
+| 4 | `neer/app`, `neer/eval`, pitch | the Control Room, the eval score, the demo |

@@ -52,8 +52,8 @@ def create_work_order(case_id: str, area_id: str, action: Literal["acoustic", "d
             if not approved_by:
                 raise PermissionError("A dig needs a supervisor's approval (approved_by).")
         key = f"{case_id}|{area_id}|{action}"
-        if key in w.idempotency:
-            return w.work_orders[w.idempotency[key]]
+        if key in w.idempotency and w.work_orders[w.idempotency[key]].status == "open":
+            return w.work_orders[w.idempotency[key]]        # same request again -> same open order
         wo = WorkOrder(work_order_id=f"WO-{len(w.work_orders) + 1:03d}", case_id=case_id, area_id=area_id, action=action)
         w.work_orders[wo.work_order_id] = wo
         w.idempotency[key] = wo.work_order_id

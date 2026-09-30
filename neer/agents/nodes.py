@@ -27,6 +27,14 @@ def _provider_note(d) -> str:
 # ============================================================ 1. SENTINEL
 def sentinel(s: CaseState) -> dict:
     zf = call("Sentinel", "get_zone_flow", days=1)
+    window = 1
+    for days in (2, 3):
+        # slow-leak check: a small leak hides in one day of noise but adds up over several days
+        if is_error(zf) or zf["detection"]["alarm"]:
+            break
+        longer = call("Sentinel", "get_zone_flow", days=days)
+        if not is_error(longer) and longer["detection"]["alarm"]:
+            zf, window = longer, days
     if is_error(zf):
         return {"status": "watch", "last_event": "inconclusive",
                 "timeline": [T("Sentinel", f"SCADA unavailable ({zf['message']}). Degraded mode: watching, "
@@ -37,9 +45,11 @@ def sentinel(s: CaseState) -> dict:
         return {"status": "no_alarm", "tier": "NONE",
                 "timeline": [T("Sentinel", f"All zones normal (largest t = {worst['t_score']}). No case.", "info")]}
     witnesses = [w for w in ("water", "pressure", "persistence") if d[w]]
-    return {"tier": d["tier"], "zone": worst["zone"],
+    slow = f" (slow leak: visible over {window} days)" if window > 1 else ""
+    return {"tier": d["tier"], "zone": worst["zone"], "window_days": window, "status": "open",
+            "alarm_excess_lps": worst["excess_lps"],
             "timeline": [T("Sentinel",
-                           f"Alarm, tier {d['tier']}. Witnesses: {', '.join(witnesses)}. "
+                           f"Alarm{slow}, tier {d['tier']}. Witnesses: {', '.join(witnesses)}. "
                            f"Zone {worst['zone']} takes {worst['excess_lps']:+.1f} L/s vs normal (t = {worst['t_score']}); "
                            f"pressure score {d['pressure_score']}.", "alert",
                            excess_lps=worst["excess_lps"], t=worst["t_score"])]}
@@ -48,9 +58,9 @@ def sentinel(s: CaseState) -> dict:
 # ============================================================ 2. SKEPTIC (gate)
 def skeptic_gate(s: CaseState) -> dict:
     health = call("Skeptic", "sensor_health")
-    ops = call("Skeptic", "get_ops_log", days=1)
-    cal = call("Skeptic", "get_supply_calendar", days=1)
-    v = call("Skeptic", "replay_operation")
+    ops = call("Skeptic", "get_ops_log", days=s.window_days)
+    cal = call("Skeptic", "get_supply_calendar", days=s.window_days)
+    v = call("Skeptic", "replay_operation", days=s.window_days)
     if is_error(v):
         return {"status": "watch", "timeline": [T("Skeptic", f"Could not run checks ({v['message']}); watching.", "alert")]}
     bad = [x["sensor"] for x in health.get("sensors", []) if x["status"] != "ok"] if not is_error(health) else []
@@ -59,9 +69,20 @@ def skeptic_gate(s: CaseState) -> dict:
                  f"Calendar: {[c['detail'] for c in cal] if not is_error(cal) else 'unavailable'}. "
                  f"Twin replay verdict: {v['verdict']} - {v['reason']}")
     engine_says_leak = v["verdict"] == "leak"
-    allowed = ["open_case"] if engine_says_leak else ["dismiss", "open_case"]
-    d = decide("Skeptic", prompts.SKEPTIC_GATE, situation, allowed,
-               rules=lambda: ("open_case", v["reason"]) if engine_says_leak else ("dismiss", v["reason"]))
+    small = engine_says_leak and s.alarm_excess_lps < config.MIN_ACTIONABLE_LPS and s.waits < config.MAX_WAIT_DAYS
+    if small:
+        allowed = ["wait_more_data", "open_case"]
+        rules = lambda: ("wait_more_data", f"Only {s.alarm_excess_lps:+.1f} L/s - too small to send a crew on one "
+                                           "window of data. Collect another day first.")
+    elif engine_says_leak:
+        allowed, rules = ["open_case"], lambda: ("open_case", v["reason"])
+    else:
+        allowed, rules = ["dismiss", "open_case"], lambda: ("dismiss", v["reason"])
+    d = decide("Skeptic", prompts.SKEPTIC_GATE, situation + f" Unexplained excess: {s.alarm_excess_lps} L/s.",
+               allowed, rules)
+    if d.choice == "wait_more_data":
+        return {"status": "waiting", "skeptic_verdict": v["verdict"],
+                "timeline": [T("Skeptic", f"Wait: {d.reason}", "decision", _provider_note(d))]}
     if d.choice == "dismiss":
         call("Skeptic", "case_memory", op="write", key=f"false_alarm:{s.case_id}", value=v["reason"])
         return {"status": "watch", "skeptic_verdict": v["verdict"], "skeptic_reason": v["reason"],
@@ -74,10 +95,12 @@ def skeptic_gate(s: CaseState) -> dict:
 
 # ============================================================ 3. DETECTIVE
 def detective(s: CaseState) -> dict:
-    loc = call("Detective", "locate_leak", case_id=s.case_id, days=2)
+    # after a repair, only post-repair data describes the leak that is left
+    days = 1 if s.last_event in ("partly", "not_fixed") else 2
+    loc = call("Detective", "locate_leak", case_id=s.case_id, days=days)
     if is_error(loc):
         return {"last_event": "inconclusive", "timeline": [T("Detective", f"Localisation failed: {loc['message']}", "alert")]}
-    size = call("Detective", "estimate_leak_size", zone=loc["zone"], days=2)
+    size = call("Detective", "estimate_leak_size", zone=loc["zone"], days=days)
     pm = f" ± {size['plus_minus_lps']}" if not is_error(size) else ""
     areas = ", ".join(f"{a['area_id']} {a['probability']:.0%}" for a in loc["areas"])
     event = "located" if s.last_event in ("start", "located") else s.last_event
@@ -89,10 +112,12 @@ def detective(s: CaseState) -> dict:
 
 # ============================================================ 4. ORCHESTRATOR
 def orchestrator(s: CaseState) -> dict:
-    over_budget = s.visits >= config.MAX_VISITS or s.replans > config.MAX_REPLANS
+    over_budget = (s.visits - s.round_start_visits >= config.MAX_VISITS
+                   or s.replans - s.round_start_replans > config.MAX_REPLANS)
     if over_budget and s.last_event != "acoustic_yes":      # never abandon a confirmed acoustic hit
         return {"next_action": "escalate",
-                "timeline": [T("Orchestrator", f"Budget used ({s.visits} visits, {s.replans} re-plans). "
+                "timeline": [T("Orchestrator", f"Budget used ({s.visits - s.round_start_visits} visits this round, "
+                                               f"{s.replans - s.round_start_replans} re-plans). "
                                                "Escalating to the supervisor with a summary.", "decision")]}
     areas = call("Orchestrator", "plan_search_areas", case_id=s.case_id, n=3)
     if is_error(areas):
@@ -108,9 +133,15 @@ def orchestrator(s: CaseState) -> dict:
                "dig_empty": "The dig found nothing there, so that area is down-weighted.",
                "not_fixed": "The Auditor proved the leak is still running.",
                "partly": "One leak fixed; hunting what is left."}.get(s.last_event, "")
-        rules = lambda: ("acoustic_check", f"{why} Best area now {top['area_id']} "
-                                           f"({top['probability']:.0%}, {top['pipe_km']} km of pipe): listen first.".strip())
-        target = top["area_id"]
+        if s.last_event == "not_fixed" and s.current_area:
+            # the repair did not hold: most often the crew fixed a different pipe nearby - re-listen there first
+            target = s.current_area
+            rules = lambda: ("acoustic_check", f"{why} Re-listen at the repair site {target} first: "
+                                               "a wrong pipe nearby is the most common cause.")
+        else:
+            target = top["area_id"]
+            rules = lambda: ("acoustic_check", f"{why} Best area now {top['area_id']} "
+                                               f"({top['probability']:.0%}, {top['pipe_km']} km of pipe): listen first.".strip())
     situation = (f"Case {s.case_id}, zone {s.zone}, leak ≈ {s.leak_size_lps} L/s. Last event: {s.last_event}. "
                  f"Visits {s.visits}/{config.MAX_VISITS}, re-plans {s.replans}/{config.MAX_REPLANS}. "
                  f"Search areas: {[(a['area_id'], a['probability'], a['pipe_km']) for a in areas]}. "
@@ -213,12 +244,24 @@ def auditor(s: CaseState) -> dict:
     elif v["verdict"] in ("NOT_FIXED", "PARTLY_FIXED"):
         rel = call("Auditor", "release_contractor", work_order_id=s.work_order)
         out.update(contractor=rel.get("decision"), last_event="partly" if v["verdict"] == "PARTLY_FIXED" else "not_fixed",
+                   round_start_visits=s.visits, round_start_replans=s.replans,
                    timeline=[T("Auditor", f"{v['verdict'].replace('_', ' ')} - {v['reason']} "
                                           f"Contractor payment {rel.get('decision')}. Case reopened.", "verdict")])
     else:
         out.update(last_event="inconclusive", inconclusive_waits=s.inconclusive_waits + 1,
                    timeline=[T("Auditor", f"INCONCLUSIVE - {v['reason']}", "verdict")])
     return out
+
+
+# ============================================================ waiting for more evidence
+def wait_day(s: CaseState) -> dict:
+    """Let one more day of SCADA data arrive (the simulation clock), then the Sentinel looks again."""
+    from neer.tools.world import session
+    with session() as w:
+        d = w.advance_day()
+    return {"waits": s.waits + 1, "status": "open",
+            "timeline": [T("Orchestrator", f"Waited for day {d.day}'s data before deciding (wait {s.waits + 1}/"
+                                           f"{config.MAX_WAIT_DAYS}).", "info")]}
 
 
 # ============================================================ terminal nodes

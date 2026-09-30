@@ -24,6 +24,9 @@ class CaseState(BaseModel):
     scenario: str = ""
     status: str = "open"                       # open | watch | no_alarm | closed | escalated
     tier: str = "NONE"
+    window_days: int = 1                       # how many days of data raised the alarm
+    alarm_excess_lps: float = 0.0
+    waits: int = 0
     zone: Optional[str] = None
     leak_size_lps: float = 0.0
     skeptic_verdict: Optional[str] = None
@@ -39,6 +42,8 @@ class CaseState(BaseModel):
     plan_approved: bool = False
     visits: int = 0
     replans: int = 0
+    round_start_visits: int = 0                # budget is per search round (a new round starts after NOT FIXED / PARTLY)
+    round_start_replans: int = 0
     inconclusive_waits: int = 0
     work_order: Optional[str] = None
     dig_approver: Optional[str] = None

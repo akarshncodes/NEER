@@ -22,6 +22,8 @@ def _after_sentinel(s: CaseState) -> str:
 
 
 def _after_gate(s: CaseState) -> str:
+    if s.status == "waiting":
+        return "wait_day"
     return "detective" if s.status == "open" else END
 
 
@@ -68,7 +70,7 @@ def _after_auditor(s: CaseState) -> str:
 def build_graph(checkpointer=None):
     g = StateGraph(CaseState)
     for name in ("sentinel", "skeptic_gate", "detective", "orchestrator", "skeptic_review", "approve_plan",
-                 "approve_dig", "field_commander", "auditor", "escalate"):
+                 "approve_dig", "field_commander", "auditor", "escalate", "wait_day"):
         g.add_node(name, getattr(N, name))
     g.add_edge(START, "sentinel")
     g.add_conditional_edges("sentinel", _after_sentinel)
@@ -81,4 +83,5 @@ def build_graph(checkpointer=None):
     g.add_conditional_edges("field_commander", _after_field)
     g.add_conditional_edges("auditor", _after_auditor)
     g.add_edge("escalate", END)
+    g.add_edge("wait_day", "sentinel")
     return g.compile(checkpointer=checkpointer or InMemorySaver())

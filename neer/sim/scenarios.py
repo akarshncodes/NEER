@@ -17,7 +17,7 @@ class Scenario(BaseModel):
 
 
 SCENARIOS: dict[str, Scenario] = {s.name: s for s in [
-    Scenario(name="quiet", title="A normal day", expect="no_alarm"),
+    Scenario(name="quiet", title="A normal day", expect="watch_or_no_alarm"),
     Scenario(name="leak_20", title="Hidden 20 L/s leak", events=[Leak(node="239", lps=20)], expect="closed_fixed"),
     Scenario(name="leak_10", title="Small 10 L/s leak", events=[Leak(node="169", lps=10)], expect="closed_fixed"),
     Scenario(name="leak_40", title="Burst 40 L/s", events=[Leak(node="117", lps=40)], expect="closed_fixed"),

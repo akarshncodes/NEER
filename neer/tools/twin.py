@@ -31,10 +31,14 @@ def simulate(events: list[Event]) -> dict:
 
 
 @resilient_tool("twin")
-def replay_operation(op_id: Optional[str] = None) -> SkepticVerdict:
-    """Skeptic's test: replay logged operations / planned work in the twin, check sensor health and
-    short events. With op_id, only that operation is considered. Returns the verdict and a plain reason."""
+def replay_operation(op_id: Optional[str] = None, days: int = 1) -> SkepticVerdict:
+    """Skeptic's test over the last `days` days: replay logged operations / planned work in the twin, check sensor
+    health and short events. With op_id, only that operation (latest day) is considered. Returns verdict + reason."""
+    if not 1 <= days <= 7:
+        raise ValueError("days must be between 1 and 7")
     with session(write=False) as w:
+        if op_id is None:
+            return skeptic_check(w.baseline, w.days(days))
         day = w.days(1)[0]
         if op_id is not None:
             ops = [o for o in day.ops_log if o.op_id == op_id]
