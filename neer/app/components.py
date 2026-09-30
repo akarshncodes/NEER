@@ -133,13 +133,50 @@ def auditor_meter(llr: list[float], height: int = 220) -> go.Figure:
 
 
 # ------------------------------------------------------------------ HTML bits
+def brain_of(entry: dict) -> str | None:
+    """Which brain produced an AI-decision timeline entry: 'AI: groq', 'AI: gemini', 'AI: <name>' or 'rules'.
+    None for entries that are not decisions (tool results, human gates)."""
+    if "guard" not in (entry.get("numbers") or {}):
+        return None
+    prov = (entry.get("provider") or "rules").split(" ")[0].split(":")[0]
+    return "rules" if prov == "rules" else f"AI: {prov}"
+
+
+def ai_stats(entries: list[dict]) -> tuple[int, int, int]:
+    """(decisions answered by a live model, fallbacks to rules after the chain failed, rule vetoes)."""
+    ai = fb = veto = 0
+    for e in entries:
+        brain = brain_of(e)
+        if brain is None:
+            continue
+        if brain != "rules":
+            ai += 1
+        elif "(after:" in (e.get("provider") or ""):
+            fb += 1
+        veto += str(e["numbers"]["guard"]).startswith("vetoed")
+    return ai, fb, veto
+
+
+def _badges(e: dict) -> str:
+    brain = brain_of(e)
+    if brain is None:
+        return ""
+    guard = str(e["numbers"]["guard"])
+    vetoed = guard.startswith("vetoed")
+    tip = html.escape(f"AI chose '{e['numbers'].get('ai_choice')}'; rules default '{e['numbers'].get('rules_default')}'; "
+                      f"guard: {guard}")
+    return (f'<div class="bd" title="{tip}"><span class="bdg {"rules" if brain == "rules" else "ai"}">{html.escape(brain)}</span>'
+            f'<span class="bdg {"veto" if vetoed else "ok"}">guard: {"vetoed" if vetoed else "accepted"}</span></div>')
+
+
 def timeline_html(entries: list[dict]) -> str:
     rows = []
     for e in entries:
         c = AGENT_COLOURS.get(e["agent"], INK2)
         prov = f'<span class="prov">{html.escape(e["provider"])}</span>' if e.get("provider") else ""
         rows.append(f'<div class="tl {e.get("kind", "info")}"><span class="ag" style="background:{c}">'
-                    f'{html.escape(e["agent"])}</span><span class="tx">{html.escape(e["text"])}</span>{prov}</div>')
+                    f'{html.escape(e["agent"])}</span><span class="tx">{html.escape(e["text"])}{_badges(e)}</span>'
+                    f'{prov}</div>')
     return '<div class="tlwrap">' + "".join(rows) + "</div>"
 
 
@@ -159,7 +196,7 @@ CSS = """
 <style>
 .block-container{padding-top:1.2rem;padding-bottom:1rem;max-width:1500px}
 h1{font-size:1.7rem !important;letter-spacing:-.02em}
-.kpi{border:1px solid #e3e2dc;border-radius:10px;padding:8px 12px;background:#fff}
+.kpi{border:1px solid #e3e2dc;border-radius:10px;padding:8px 12px;background:#fff;min-height:66px;box-sizing:border-box}
 .kpi .v{font-size:1.35rem;font-weight:700;color:#1d5aa6;line-height:1.1}
 .kpi .l{font-size:.75rem;color:#52514e}
 .tlwrap{max-height:520px;overflow-y:auto;padding-right:4px}
@@ -167,6 +204,12 @@ h1{font-size:1.7rem !important;letter-spacing:-.02em}
 .tl .ag{color:#fff;border-radius:6px;padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap;margin-top:1px}
 .tl .tx{flex:1;color:#0b0b0b}
 .tl .prov{font-size:.68rem;color:#8f8e87;white-space:nowrap}
+.tx .bd{margin-top:4px}
+.bdg{display:inline-block;white-space:nowrap;border-radius:5px;padding:1px 7px;margin-right:5px;font-size:.72rem;font-weight:700;border:1px solid}
+.bdg.ai{background:#e8f0fb;color:#14468a;border-color:#1d5aa6}
+.bdg.rules{background:#efeee9;color:#3d3c39;border-color:#8f8e87}
+.bdg.ok{background:#eaf6ee;color:#14692d;border-color:#1a8a3c}
+.bdg.veto{background:#fbe9e9;color:#9b1f1f;border-color:#c73636}
 .tl.verdict{background:#f4faf5}.tl.alert{background:#fdf6f6}.tl.human{background:#fbf5e8}
 .card{font-family:'DejaVu Sans Mono',monospace;font-size:.8rem;line-height:1.55;border:1.5px solid #1d5aa6;
       border-radius:10px;padding:10px 12px;background:#f6f9fe}

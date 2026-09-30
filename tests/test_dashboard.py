@@ -16,3 +16,16 @@ def test_dashboard_runs_a_case():
     [b for b in at.sidebar.button if "Autopilot" in b.label][0].click().run()
     assert not at.exception
     assert any("CLOSED" in m.value and "FIXED" in m.value for m in at.markdown)
+
+
+def test_badges_and_ai_stats():
+    from neer.app import components as C
+    ai = dict(agent="Skeptic", text="x", kind="decision", provider="groq:openai/gpt-oss-120b",
+              numbers=dict(ai_choice="dismiss", rules_default="open_case", guard="vetoed: dismiss -> open_case"))
+    fb = dict(agent="Orchestrator", text="y", kind="decision", provider="rules (after: groq: 429)",
+              numbers=dict(ai_choice="acoustic_check", rules_default="acoustic_check", guard="accepted"))
+    plain = dict(agent="Sentinel", text="z", kind="alert", provider=None, numbers={})
+    assert C.brain_of(ai) == "AI: groq" and C.brain_of(fb) == "rules" and C.brain_of(plain) is None
+    assert C.ai_stats([ai, fb, plain]) == (1, 1, 1)
+    page = C.timeline_html([ai, fb, plain])
+    assert "AI: groq" in page and "guard: vetoed" in page and "guard: accepted" in page and page.count("bdg ") == 4

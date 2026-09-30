@@ -60,6 +60,7 @@ def run(payload, animate: bool = True) -> None:
 def start(scenario: str, seed: int, mode: str, llm: str) -> None:
     ss.graph, ss.cfg, init = start_case(scenario, seed, mode, llm)
     ss.scenario = scenario
+    ss.brain = llm
     ss.pending = None
     run(init)
 
@@ -87,6 +88,7 @@ with st.sidebar:
         keys = {"Groq": bool(os.getenv("GROQ_API_KEY")), "Gemini": bool(os.getenv("GOOGLE_API_KEY")),
                 "Ollama": os.getenv("NEER_USE_OLLAMA") == "1"}
         st.caption("Chain: " + " → ".join(f"{k} {'✅' if v else '⛔'}" for k, v in keys.items()) + " → rules ✅")
+    brain_note = st.empty()        # filled after the buttons have run, so its counts are current
     mode = st.radio("Tools via", ["direct", "mcp"], horizontal=True,
                     format_func=lambda x: "in-process" if x == "direct" else "4 MCP servers")
     ss.approver = st.text_input("Approver name", value=ss.get("approver", "Supervisor"))
@@ -120,12 +122,20 @@ st.caption("SUSPECT → QUESTION → INVESTIGATE → ACT → VERIFY → REPLAN �
 w = current_world()
 v = case_values()
 k = w.kpi if w else {}
-cols = st.columns(8)
+_ai, _fb, _veto = C.ai_stats(v.get("timeline", []))
+if llm == "rules":
+    brain_note.info("**Brain: rules only.** Every decision comes from the deterministic policy. No model is called.")
+else:
+    brain_note.info(f"**Brain: LLM chain** (Groq → Gemini → rules). Live models answered {_ai} decisions; "
+                    f"{_fb} fell back to rules; {_veto} vetoed by a safety rule. Rules still own physics, "
+                    "thresholds, the safety validator and the Auditor.")
+cols = st.columns(9)
 for col, (label, val) in zip(cols, [
         ("Cases", k.get("cases", 0)), ("False alarms avoided", k.get("false_alarms_avoided", 0)),
         ("Acoustic checks", k.get("acoustic_checks", 0)), ("Digs", k.get("digs", 0)),
         ("Wasted digs", k.get("wasted_digs", 0)), ("Repairs proven", k.get("repairs_verified", 0)),
         ("Crew-hours", f"{k.get('crew_hours', 0):.1f}"),
+        ("AI decisions / fallbacks / vetoes", f"{_ai} / {_fb} / {_veto}"),
         ("Water saved", f"{k.get('litres_saved_per_day', 0) / 1000:,.0f} m³/d")]):
     col.markdown(f'<div class="kpi"><div class="v">{val}</div><div class="l">{label}</div></div>',
                  unsafe_allow_html=True)
