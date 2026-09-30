@@ -259,3 +259,9 @@ def test_city3d_deck_builds_for_a_case():
     assert flown.initial_view_state.pitch == 60 and flown.initial_view_state.zoom > deck.initial_view_state.zoom
     empty = city3d.build_deck(basemap=False)                                         # before any case: no crash
     assert empty.map_style is None
+
+
+def test_blueprint_deck_builds():
+    from neer.app import city3d
+    d = city3d.build_blueprint()
+    assert d.map_style is None and len(d.layers) >= 5

@@ -255,3 +255,100 @@ def legend_html() -> str:
         sw(FIXED, "width:14px;height:4px") + "repaired",
     ]
     return '<div class="maplegend">' + "".join(f"<span>{i}</span>" for i in items) + "</div>"
+
+
+# ====================================================================== blueprint mode
+# A "blueprint on the table" look: white wireframe city blocks on a dark board, pipes drawn as thin
+# drafting lines, and the suspected leak pipes glowing red/orange. The blocks are illustrative (one block
+# per junction, deterministic heights) - the pipes, areas, likelihoods and sensors are the real case data.
+BP_BOARD = [8, 24, 44, 255]
+BP_GRID = [120, 170, 220, 40]
+BP_LINE = [225, 238, 250, 230]
+BP_PIPE = [150, 200, 240, 170]
+BP_HOT = [255, 90, 40, 255]
+BP_GLOW = [255, 120, 40, 70]
+
+
+def _block(lon: float, lat: float, half_m: float) -> list[list[float]]:
+    dlat = half_m / 111_000
+    dlon = half_m / (111_000 * np.cos(np.radians(lat)))
+    return [[lon - dlon, lat - dlat], [lon + dlon, lat - dlat], [lon + dlon, lat + dlat], [lon - dlon, lat + dlat]]
+
+
+def build_blueprint(layers: Optional[Layers] = None, cam: Optional[Camera] = None,
+                    width_px: int = 700, height_px: int = 600) -> pdk.Deck:
+    """The blueprint-style 3D view (no basemap, so it works fully offline)."""
+    L, cam = layers or Layers(), cam or Camera()
+    g = _Geo()
+    net, wn = g.net, g.net.wn
+    out: list[pdk.Layer] = []
+
+    # the board + a drafting grid
+    lo, hi = _bbox(g.raw, 0.12)
+    board = g.conv(np.array([[lo[0], lo[1]], [hi[0], lo[1]], [hi[0], hi[1]], [lo[0], hi[1]]]))
+    out.append(pdk.Layer("PolygonLayer", [dict(poly=board)], get_polygon="poly", stroked=True,
+                         get_fill_color=BP_BOARD, get_line_color=BP_LINE, line_width_min_pixels=2))
+    grid = []
+    for t in np.linspace(0, 1, 25):
+        x = lo[0] + (hi[0] - lo[0]) * t
+        y = lo[1] + (hi[1] - lo[1]) * t
+        grid.append(dict(p=g.conv(np.array([[x, lo[1]], [x, hi[1]]]))))
+        grid.append(dict(p=g.conv(np.array([[lo[0], y], [hi[0], y]]))))
+    out.append(pdk.Layer("PathLayer", grid, get_path="p", get_color=BP_GRID, get_width=1, width_min_pixels=1))
+
+    # which junctions are suspected (candidate / current area) and how strongly
+    rows = {r["id"]: r for r in _junction_rows(g, L)}
+    hot_j = {j for _, js in L.top_areas for j in js} | (set(L.current[1]) if L.current else set())
+    fixed_j = set(L.repaired[1]) if L.repaired else set()
+
+    # wireframe city blocks, one per junction (illustrative)
+    blocks = []
+    for j in net.junctions:
+        lon, lat = g.pos[j]
+        h = 50 + (int(j) * 37 % 7) * 28
+        is_hot = j in hot_j
+        line = BP_HOT if is_hot else ([90, 220, 140, 255] if j in fixed_j else BP_LINE)
+        fill = [255, 110, 50, int(40 + 90 * rows[j]["rel"])] if is_hot else [200, 225, 255, 14]
+        blocks.append(dict(poly=_block(lon, lat, 32), h=h + (180 * rows[j]["rel"] if is_hot else 0), line=line,
+                           fill=fill, title=rows[j]["title"], line1=rows[j]["line1"], line2=rows[j]["line2"]))
+    out.append(pdk.Layer("PolygonLayer", blocks, get_polygon="poly", extruded=True, wireframe=True,
+                         get_elevation="h", get_fill_color="fill", get_line_color="line", pickable=True,
+                         auto_highlight=True, highlight_color=[255, 255, 255, 90]))
+
+    # pipes: drafting lines; pipes inside the suspected area glow
+    cold, glow = [], []
+    for name in wn.link_name_list:
+        lk = wn.get_link(name)
+        s, e = lk.start_node_name, lk.end_node_name
+        seg = dict(path=[g.pos[s], g.pos[e]])
+        (glow if (s in hot_j or e in hot_j) and s in net.jindex and e in net.jindex else cold).append(seg)
+    out.append(pdk.Layer("PathLayer", cold, get_path="path", get_color=BP_PIPE, get_width=6, width_min_pixels=1.2))
+    if glow:
+        out.append(pdk.Layer("PathLayer", glow, get_path="path", get_color=BP_GLOW, get_width=60, width_min_pixels=8,
+                             cap_rounded=True))
+        out.append(pdk.Layer("PathLayer", glow, get_path="path", get_color=BP_HOT, get_width=14, width_min_pixels=3,
+                             cap_rounded=True))
+
+    # sensors: small cyan dots
+    out.append(pdk.Layer("ScatterplotLayer", [dict(pos=g.pos[s]) for s in net.sensors], get_position="pos",
+                         get_radius=30, radius_min_pixels=2.5, get_fill_color=[90, 220, 255, 255]))
+
+    # labels, drafting style ("tunnel ->" in the reference)
+    labels = [dict(pos=g.centre(net.zone_junctions(z)), t=f"ZONE {z}", c=[210, 230, 250, 200], s=15)
+              for z in net.zone_names]
+    focus = focus_area(L)
+    if focus:
+        tag = "REPAIRED" if L.repaired and focus[0] == L.repaired[0] else "LEAK SUSPECTED"
+        top = max((b["h"] for b, j in zip(blocks, net.junctions) if j in focus[1]), default=100)
+        labels.append(dict(pos=[*g.centre(focus[1]), top + 80], t=f"{tag}  {focus[0]}  ←", c=BP_HOT if tag != "REPAIRED"
+                           else [90, 220, 140, 255], s=17))
+    if L.true_leaks:
+        labels += [dict(pos=[*g.pos[n], 420], t="TRUE LEAK", c=[255, 60, 60, 255], s=14) for n in L.true_leaks if n in g.pos]
+        out.append(pdk.Layer("ColumnLayer", [dict(pos=g.pos[n]) for n in L.true_leaks if n in g.pos], get_position="pos",
+                             get_elevation=400, radius=10, extruded=True, get_fill_color=[255, 60, 60, 255]))
+    out.append(pdk.Layer("TextLayer", labels, get_position="pos", get_text="t", get_color="c", get_size="s",
+                         font_weight=700, billboard=True, font_settings={"sdf": True}, outline_width=3,
+                         outline_color=[8, 24, 44, 255], get_pixel_offset=[0, -14]))
+    return pdk.Deck(layers=out, initial_view_state=view_state(L, cam, width_px, height_px), map_style=None,
+                    tooltip={"html": "<b>{title}</b><br/>{line1}<br/>{line2}",
+                             "style": {"backgroundColor": "#0b1e33", "color": "#e6f0fa", "fontSize": "12px"}})

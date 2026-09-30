@@ -212,7 +212,7 @@ def run_demo_suite() -> None:
     st.rerun()                                                                       # the other tabs read fresh state
 
 
-def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool) -> None:
+def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool, blueprint: bool = False) -> None:
     """The 3D city view. It uses the 2D map's layers, but keeps the Detective's likelihood columns after closing,
     so the story (where it looked, where it dug) stays visible next to the green repaired ring."""
     if case is not None and case.posterior is not None and located:
@@ -225,8 +225,9 @@ def render_city3d(layers: opsmap.Layers, case, v: dict, located: bool) -> None:
                     help="Centre and zoom on the area being searched (or the top candidate / repaired area).")
     pitch = c2.slider("Tilt", 0, 75, 55, key="tilt3d", help="Camera tilt in degrees (0 = straight down).")
     bearing = c3.slider("Rotate", -180, 180, -25, 5, key="bearing3d", help="Compass rotation of the camera in degrees.")
-    deck = city3d.build_deck(layers, city3d.Camera(pitch=pitch, bearing=bearing, fly_to=fly), width_px=520, height_px=600,
-                             basemap=os.getenv("NEER_3D_BASEMAP", "1") == "1")
+    cam = city3d.Camera(pitch=pitch, bearing=bearing, fly_to=fly)
+    deck = city3d.build_blueprint(layers, cam, width_px=520, height_px=600) if blueprint else \
+        city3d.build_deck(layers, cam, width_px=520, height_px=600, basemap=os.getenv("NEER_3D_BASEMAP", "1") == "1")
     st.pydeck_chart(deck, width="stretch", height=600)
     st.caption(city3d.CAPTION + (f" Focus: {target[0]}." if fly and target else ""))
     st.markdown(city3d.legend_html(), unsafe_allow_html=True)
@@ -292,10 +293,10 @@ with tab_room:
             case_zone=v.get("zone") if located else None,
             sensor_drop={s: float(d) for s, d in zip(net.sensors, drop)}, masked=list(case.masked) if case else [],
             crew=bool(field_work and cur_id))
-        dim = st.segmented_control("Map view", ["2D ops map", "3D city view"], default="2D ops map", key="map_dim",
+        dim = st.segmented_control("Map view", ["2D ops map", "3D city view", "Blueprint 3D"], default="2D ops map", key="map_dim",
                                    label_visibility="collapsed") or "2D ops map"
-        if dim == "3D city view":
-            render_city3d(layers, case, v, located)
+        if dim in ("3D city view", "Blueprint 3D"):
+            render_city3d(layers, case, v, located, blueprint=dim == "Blueprint 3D")
         else:
             if eff_mode != map_mode:
                 st.caption("Basemap tiles unreachable (offline): showing the schematic map.")
