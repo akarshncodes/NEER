@@ -381,6 +381,7 @@ def approve_plan(s: CaseState) -> dict:
                         "action": s.next_action, "reason": s.plan_reason, "evidence": s.evidence, "areas": s.areas})
     ok = bool(answer.get("approved"))
     return {"plan_approved": ok, "status": "open" if ok else "escalated",
+            "approval_by": answer.get("by", "supervisor"), "approval_role": answer.get("role", "supervisor"),
             "timeline": [T("Supervisor", f"Plan {'approved' if ok else 'rejected'} by {answer.get('by', 'supervisor')}.",
                            "human")]}
 
@@ -392,6 +393,7 @@ def approve_dig(s: CaseState) -> dict:
     who, role = answer.get("by", "Supervisor"), answer.get("role", "supervisor")
     return {"next_action": "dig" if ok else "rejected", "last_event": s.last_event if ok else "dig_rejected",
             "dig_approver": who if ok else None, "dig_approver_role": role if ok else None,
+            "approval_by": who, "approval_role": role,
             "timeline": [T("Supervisor", f"Dig in {s.current_area} {'approved' if ok else 'rejected'} "
                                          f"by {who} ({role}).", "human")]}
 

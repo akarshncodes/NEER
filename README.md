@@ -32,11 +32,12 @@ Six LangGraph agents own a leak case from the first signal to a proven repair. T
 cd NEER
 uv sync                                    # installs everything from uv.lock (Python 3.11)
 cp .env.example .env                       # optional: add GROQ_API_KEY / GOOGLE_API_KEY for the LLM chain
-uv run pytest -q                           # 78 test runs (~2-3 min; first run builds the leak library ~20 s)
+uv run pytest -q                           # 82 test runs (~2-3 min; first run builds the leak library ~20 s)
 uv run python -m neer.agents.runner --list                     # all scenarios
 uv run python -m neer.agents.runner --scenario leak_20         # a whole case in the terminal
 uv run python -m neer.agents.runner --scenario leak_20 --mode mcp   # same, through the 4 MCP servers
-uv run streamlit run neer/app/dashboard.py                     # the Control Room
+uv run streamlit run neer/app/dashboard.py                     # the Control Room (UI)
+uv run uvicorn neer.api.server:app --port 8000                 # the REST API (2nd terminal) -> http://localhost:8000/docs
 uv run python -m neer.eval.run_eval --seeds 41,42,43,44,45     # evaluation -> docs/EVAL.md
 uv run python -m neer.eval.ablation 36                         # ablation study -> docs/ABLATION.md
 uv run python scripts/engine_report.py 40                      # physics-engine benchmark (+ calibration check)
@@ -46,7 +47,9 @@ uv run python scripts/export_dataset.py leak_20                # the simulated S
 ```
 NEER runs with **no API keys**: the `rules` brain is the last link of the LLM chain (Groq → Gemini → Ollama → rules). With keys in `.env`, choose "LLM chain" in the dashboard or pass `--llm chain`. The AI owns the investigation (which hypothesis, what evidence is missing, where to search next); rules own physics, numbers and safety, and can veto it ([`docs/RULES_VS_AI.md`](docs/RULES_VS_AI.md)). A provider that fails on the network twice in a row is rested for 60 s, so bad Wi-Fi never slows the demo.
 
-**Control Room tabs:** Control Room (operations map on a Madurai basemap with an offline schematic fallback, live agent flowchart, decision cards, evidence ledger, Auditor meter) · Operations board (Kanban of all cases, impact strip, case-report PDF) · Twin sandbox (what-if on the digital twin).
+**Database & REST API:** every agent step, human approval and work order is stored in a SQLite case database (`data/neer.db`, WAL mode, shared by the dashboard, the API and the 4 MCP server processes). A FastAPI backend (`neer/api/server.py`) exposes it and can run cases; see the "Database & API" tab and http://localhost:8000/docs. See `docs/REVIEW_GUIDE.md`.
+
+**Control Room tabs:** Control Room (operations map on a Madurai basemap with an offline schematic fallback, live agent flowchart, decision cards, evidence ledger, Auditor meter) · Operations board (Kanban of all cases, impact strip, case-report PDF) · Twin sandbox (what-if on the digital twin) · Database & API (API status, run a case through the API, stored cases, read-only SQL).
 
 Evaluations (`run_eval`, `llm_eval`, `ablation`) use their own chaos / world / trace files under `data/runs/`, so they can run while the dashboard is open.
 
@@ -97,6 +100,8 @@ neer/agents/       LangGraph graph, 6 agents, LLM router (+ decision log, provid
 neer/app/          Streamlit Control Room: ops map, flowchart, decision cards, ops board, case report, twin sandbox
 neer/eval/         end-to-end evaluation, rules-vs-AI evaluation, ablation study
 scripts/           engine_report, search_bench, export_dataset
-tests/             78 test runs (sim, engine, tools/MCP/safety, agents, AI split, dashboard)
+neer/api/          REST API (FastAPI): health, scenarios, tools, run a case, stored cases, KPIs, trace
+neer/store.py      case database (SQLite data/neer.db): cases, timeline, ledger, approvals, work orders
+tests/             82 test runs (sim, engine, tools/MCP/safety, agents, AI split, dashboard)
 reference/         research code from earlier (algorithm reference only)
 ```

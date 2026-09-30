@@ -14,6 +14,7 @@ from __future__ import annotations
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from neer import store
 from neer.agents import nodes as N
 from neer.agents.state import CaseState
 
@@ -70,11 +71,21 @@ def _after_auditor(s: CaseState) -> str:
     return "auditor" if s.inconclusive_waits < 2 else "escalate"
 
 
+def _recorded(name: str, fn):
+    """Wrap an agent node so every step it takes is also written to the case database (neer/store.py)."""
+    def node(s: CaseState) -> dict:
+        update = fn(s)
+        store.record_step(name, s.model_dump(), update)
+        return update
+    node.__name__ = name
+    return node
+
+
 def build_graph(checkpointer=None):
     g = StateGraph(CaseState)
     for name in ("sentinel", "skeptic_gate", "detective", "orchestrator", "skeptic_review", "approve_plan",
                  "approve_dig", "field_commander", "auditor", "escalate", "wait_day"):
-        g.add_node(name, getattr(N, name))
+        g.add_node(name, _recorded(name, getattr(N, name)))
     g.add_edge(START, "sentinel")
     g.add_conditional_edges("sentinel", _after_sentinel)
     g.add_conditional_edges("skeptic_gate", _after_gate)

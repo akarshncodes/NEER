@@ -179,6 +179,10 @@ question, so NEER runs with no keys. At every decision the AI answer is logged n
 - Tabs: **agent timeline**, **evidence ledger** (with baseline version), **tool trace**.
 - Chaos buttons and KPIs, including crew-hours.
 
+## 5b. Case database and REST API
+- **`neer/store.py`**, SQLite file `data/neer.db` (WAL; env `NEER_CASE_DB`). Tables: `cases` (one row per case, updated after every step), `timeline`, `ledger`, `approvals` (gate, approved, name, role), `work_orders` (PK case_id + work_order_id). Written by the graph wrapper `_recorded` in `graph.py` and by the field tools (also inside the field-mcp process). A database error is logged and never stops a case. The SQL box uses a read-only connection (`mode=ro`) and accepts one SELECT only.
+- **`neer/api/server.py`** (FastAPI): `GET /api/health`, `/api/scenarios`, `/api/tools`, `POST /api/cases` (runs a case with the given approver and role; the safety validator still applies), `GET /api/cases`, `/api/cases/{id}`, `/api/kpi`, `/api/trace`. Pydantic request models (bad input → 422), 404 for unknown ids, one case at a time (lock), CORS enabled. OpenAPI docs at `/docs`.
+
 ## 6. Evaluation (`neer/eval/`)
 - **`run_eval.py`:** 16 scenarios × seeds → `docs/EVAL.md`. Reports:
   - pass rate and wrong closures

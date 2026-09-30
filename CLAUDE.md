@@ -18,7 +18,7 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
 1. **Physics and maths live in tested code** (`neer/engine`). The LLM only plans, critiques, chooses from an allowed set, and explains. It never produces a number that a tool did not return.
 2. **Contracts are in `neer/schemas.py`.** If you change one, update `docs/SPEC.md`.
 3. **Tests must stay green.**
-   - Run `uv run pytest -q` (78 test runs; use `-m "not slow"` for a quick check).
+   - Run `uv run pytest -q` (82 test runs; use `-m "not slow"` for a quick check).
    - Then commit as `stage/feature: summary`.
 4. **Deterministic:** every random process takes a seed. Demo scenarios must replay identically (`neer/sim/scenarios.py`).
 5. **Never block on the network.** The LLM chain ends in `rules`; the MCP transport falls back to direct calls.
@@ -45,6 +45,8 @@ Reviews are at **10 PM**, **3 AM** and the **7:30 AM** final. Every team member 
   - graph.py
   - runner.py (CLI)
 - `neer/app/`: dashboard.py (Streamlit Control Room) · components.py (figures, CSS) · opsmap.py (city map on OpenStreetMap / schematic) · flowchart.py (live agent graph) · sandbox.py (twin what-if tab) · board.py (Kanban + impact strip) · report.py (case PDF) · geo.py (`to_latlon`, hulls, tile check) · theme.py (design tokens, light + dark, stylesheet) · static/ (self-hosted Geist fonts); theme also in `.streamlit/config.toml`
+- `neer/store.py`: SQLite case database (data/neer.db; tables cases, timeline, ledger, approvals, work_orders). Written by graph.py (every node, via `_recorded`) and tools/field.py (work orders); read by the dashboard and the API.
+- `neer/api/server.py`: FastAPI REST API (`uv run uvicorn neer.api.server:app --port 8000`, docs at /docs). `neer/app/dbview.py`: the "Database & API" tab.
 - `neer/eval/run_eval.py`: writes docs/EVAL.md · `neer/eval/llm_eval.py`: docs/LLM_EVAL.md · `neer/eval/ablation.py`: docs/ABLATION.md. Each calls `config.use_private_runtime()` first, so it never shares chaos/world/trace files with a running dashboard.
 - `neer/agents/llm.py`: a provider with `LLM_DOWN_AFTER` network failures in a row rests for `LLM_COOLDOWN_S`; wrong answers never rest a provider.
 

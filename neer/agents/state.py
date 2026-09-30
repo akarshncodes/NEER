@@ -51,6 +51,8 @@ class CaseState(BaseModel):
     work_order: Optional[str] = None
     dig_approver: Optional[str] = None
     dig_approver_role: Optional[str] = None
+    approval_by: Optional[str] = None           # last human decision (any gate), for the case database
+    approval_role: Optional[str] = None
     verdict: Optional[str] = None
     verdict_reason: str = ""
     llr_trace: list[float] = Field(default_factory=list)

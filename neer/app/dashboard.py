@@ -21,7 +21,7 @@ from neer import config
 from neer.agents.runner import pending_interrupt, start_case, step_events
 from neer.app import components as C
 from neer.app import theme
-from neer.app import board, flowchart, geo, opsmap, sandbox
+from neer.app import board, dbview, flowchart, geo, opsmap, sandbox
 from neer.sim.network import get_network
 from neer.sim.scenarios import SCENARIOS
 from neer.tools import chaos
@@ -116,7 +116,7 @@ with st.sidebar:
     st.markdown("#### Run")
     ss.speed = st.slider("Animation (s per step)", 0.0, 1.5, 0.35, 0.05)
     c1, c2 = st.columns(2)
-    if c1.button("Start case", type="primary", width="stretch", icon=":material/play_arrow:"):
+    if c1.button("Start case", type="primary", width="stretch"):
         start(scen, int(seed), mode, llm)
     if c2.button("Autopilot", width="stretch", disabled=not ss.get("pending"), icon=":material/fast_forward:"):
         autopilot()
@@ -182,7 +182,10 @@ def run_demo_suite() -> None:
     st.rerun()                                                                       # the other tabs read fresh state
 
 
-tab_room, tab_board, tab_sandbox = st.tabs(["Control Room", "Operations board", "Twin sandbox (what-if)"])
+tab_room, tab_board, tab_sandbox, tab_db = st.tabs(["Control Room", "Operations board", "Twin sandbox (what-if)",
+                                                   "Database & API"])
+with tab_db:
+    dbview.render(scen, int(seed))
 with tab_sandbox:
     sandbox.render_tab(int(seed), eff_mode, run_whatif_case)
 with tab_board:

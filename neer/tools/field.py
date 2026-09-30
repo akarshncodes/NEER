@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from neer import config
+from neer import config, store
 from neer.engine.acoustic import acoustic_check as _acoustic
 from neer.schemas import AcousticResult, CrewStatus, SearchArea, WorkOrder
 from neer.tools import chaos
@@ -39,6 +39,11 @@ def acoustic_check(case_id: str, area_id: str) -> AcousticResult:
             c.weights.acoustic_no(junctions)
         elif res.result == "yes":
             c.acoustic_yes.add(area_id)
+        wo_id = w.idempotency.get(f"{case_id}|{area_id}|acoustic")        # close the survey's work order
+        if wo_id and w.work_orders[wo_id].status == "open":
+            wo = w.work_orders[wo_id]
+            wo.status, wo.result = "done", res.result
+            store.save_work_order(wo)
         return res
 
 
@@ -60,6 +65,7 @@ def create_work_order(case_id: str, area_id: str, action: Literal["acoustic", "d
                        approver_role=approver_role if action != "acoustic" else None)
         w.work_orders[wo.work_order_id] = wo
         w.idempotency[key] = wo.work_order_id
+        store.save_work_order(wo)                      # permanent record in the case database
         return wo
 
 
@@ -77,6 +83,7 @@ def crew_status(work_order_id: str) -> CrewStatus:
         junctions = c.areas[wo.area_id]
         if wo.action == "acoustic":
             wo.status, wo.result = "done", None
+            store.save_work_order(wo)
             return CrewStatus(work_order_id=work_order_id, status="done")
         w.kpi["digs"] += 1
         w.kpi["crew_hours"] = round(w.kpi.get("crew_hours", 0) + config.DIG_HOURS, 2)
@@ -95,6 +102,7 @@ def crew_status(work_order_id: str) -> CrewStatus:
             c.weights.empty_dig(junctions)
             wo.result = "nothing_found"
         wo.status = "done"
+        store.save_work_order(wo)
         return CrewStatus(work_order_id=work_order_id, status="done", result=wo.result)
 
 

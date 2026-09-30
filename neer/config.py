@@ -33,6 +33,7 @@ CASES_DB = Path(os.getenv("NEER_CASES_DB", DATA_DIR / "cases.db"))
 TRACE_DB = Path(os.getenv("NEER_TRACE_DB", DATA_DIR / "trace.db"))
 CHAOS_FILE = Path(os.getenv("NEER_CHAOS_FILE", DATA_DIR / "chaos.json"))
 WORLD_FILE = Path(os.getenv("NEER_WORLD_FILE", DATA_DIR / "world.pkl"))
+CASE_DB = Path(os.getenv("NEER_CASE_DB", DATA_DIR / "neer.db"))      # the case database (neer/store.py)
 
 
 def use_private_runtime(name: str) -> None:
@@ -42,10 +43,11 @@ def use_private_runtime(name: str) -> None:
     data/trace.db with it: the eval's chaos toggles would fire in the demo, and the demo's tool calls
     would be counted in the eval. Call it at the start of main(), before any tool runs.
     """
-    global TRACE_DB, CHAOS_FILE, WORLD_FILE
+    global TRACE_DB, CHAOS_FILE, WORLD_FILE, CASE_DB
     run_dir = DATA_DIR / "runs" / name
     run_dir.mkdir(parents=True, exist_ok=True)
     TRACE_DB, CHAOS_FILE, WORLD_FILE = run_dir / "trace.db", run_dir / "chaos.json", run_dir / "world.pkl"
+    CASE_DB = run_dir / "neer.db"
 
 # ---------------------------------------------------------------- network
 HOURS = 24                      # one simulated day = 24 hourly values

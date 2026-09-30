@@ -23,6 +23,8 @@ dependencies = [
   "plotly>=6.0",
   "fpdf2>=2.8.9",
   "matplotlib>=3.11.2",
+  "fastapi>=0.142.2",
+  "uvicorn>=0.30",
 ]
 
 [dependency-groups]

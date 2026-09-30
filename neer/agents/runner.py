@@ -14,6 +14,7 @@ from typing import Callable, Iterator, Optional
 from langgraph.types import Command
 from rich.console import Console
 
+from neer import store
 from neer.agents.graph import build_graph
 from neer.agents.state import CaseState, TimelineEntry
 from neer.sim.scenarios import SCENARIOS
@@ -35,6 +36,7 @@ def start_case(scenario: str, seed: int = 7, mode: str = "direct", llm: str = "r
     clear_trace()
     graph = build_graph()
     case_id = f"CASE-{uuid.uuid4().hex[:6].upper()}"
+    store.open_case(case_id, scenario, seed, llm, mode)          # the case database gets a row straight away
     cfg = {"configurable": {"thread_id": case_id}, "recursion_limit": 80}
     return graph, cfg, CaseState(case_id=case_id, scenario=scenario)
 

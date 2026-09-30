@@ -10,6 +10,7 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "TRACE_DB", tmp_path / "trace.db")
     monkeypatch.setattr(config, "WORLD_FILE", tmp_path / "world.pkl")
     monkeypatch.setattr(config, "CASES_DB", tmp_path / "cases.db")
+    monkeypatch.setattr(config, "CASE_DB", tmp_path / "neer.db")
     from neer.tools import resilience
     monkeypatch.setattr(resilience, "RETRY_BACKOFF_S", [0.01, 0.01])
     resilience.breaker.reset()
