@@ -8,7 +8,7 @@ Read CLAUDE.md and neer/agents/llm.py. I have put GROQ_API_KEY (and GOOGLE_API_K
 1. Run `uv run python -m neer.agents.runner --scenario leak_20 --llm chain` and `--scenario pump_trip --llm chain`.
 2. Confirm the timeline shows the real provider (not only "rules"), and that decisions stay inside the allowed sets.
 3. If a model returns invalid structured output, improve the prompts in neer/agents/prompts.py (keep them short). Do not relax the allowed-set validation.
-4. Run `uv run python -m neer.eval.run_eval --seeds 21,22,23 --llm chain`, then report the pass rate, the LLM calls and the fallbacks.
+4. Run `uv run python -m neer.eval.run_eval --seeds 41,42,43 --llm chain`, then report the pass rate, the LLM calls and the fallbacks.
 
 Do not change engine numbers. Keep all tests green.
 
@@ -22,7 +22,7 @@ Read CLAUDE.md and neer/app/. Improve the Control Room without changing the agen
 
 ---
 ## 3 · Explain-my-part cheat sheets
-For each folder (neer/sim, neer/engine, neer/tools + neer/mcp_servers, neer/agents, neer/app + neer/eval), write docs/explain/<part>.md. Each sheet should give, in simple English:
+For each folder (neer/sim, neer/engine, neer/tools + neer/mcp_servers (incl. safety.py), neer/agents (incl. the evidence ledger), neer/app + neer/eval (incl. ablation.py)), write docs/explain/<part>.md. Each sheet should give, in simple English:
 - what it does, in 5 lines
 - the 3 most important functions
 - one likely judge question with its answer
