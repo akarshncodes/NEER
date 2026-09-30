@@ -10,6 +10,21 @@ from pathlib import Path
 
 # ---------------------------------------------------------------- paths
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv() -> None:
+    """Read NEER/.env (KEY=value lines) into the environment, without overriding real env vars."""
+    f = ROOT / ".env"
+    if f.exists():
+        for line in f.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                if v.strip():
+                    os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_dotenv()
 DATA_DIR = ROOT / "data"
 CACHE_DIR = DATA_DIR / "cache"
 LIBRARY_CACHE = CACHE_DIR / "fingerprints.npz"

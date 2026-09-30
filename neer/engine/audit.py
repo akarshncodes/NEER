@@ -45,7 +45,8 @@ def sequential_verify(b: Baseline, after_days: list[DayData], zone_idx: int, pre
             best = int(np.argmax(ll))
             margin = ll[best] - np.max(np.delete(ll, best))
             # meter for the dashboard: evidence for "leak still there" vs "fixed"
-            trace.append(float(np.clip(ll[2] - ll[0], -thr * 1.5, thr * 1.5)))
+            cap = np.log(config.SPRT_ODDS_FIXED) * 1.3
+            trace.append(float(np.clip(ll[2] - ll[0], -cap, cap)))
             need = np.log(config.SPRT_ODDS_FIXED) if best == 0 else thr
             if margin > need and (best != 0 or hours >= config.SPRT_MIN_HOURS_FIXED):
                 post = float(np.mean(errors))
