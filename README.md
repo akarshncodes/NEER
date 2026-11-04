@@ -115,3 +115,11 @@ neer/store.py      case database (SQLite data/neer.db): cases, timeline, ledger,
 tests/             89 test runs (sim, engine, tools/MCP/safety, agents, AI split, dashboard)
 dataset/           demo dataset (CSV): network, 37-day live city, 16 scenarios - see dataset/README.md
 ```
+
+---
+
+## Author
+
+Built by **Akarsh N** (Team Vector Zero), B.E. Computer Science and Engineering at PSNA College of Engineering and Technology, using AI-assisted development (Claude Code).
+
+[Portfolio](https://akarshncodes.github.io) · [LinkedIn](https://www.linkedin.com/in/akarsh-n-864794416/) · akarshn.codes@gmail.com
